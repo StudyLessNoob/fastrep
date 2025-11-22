@@ -6,6 +6,19 @@
 <div class="settings-page">
     <div class="card">
         <h2>⚙️ Settings</h2>
+
+        <div class="settings-section">
+            <h3>Appearance</h3>
+            <p class="info-text">
+                Choose your preferred theme.
+            </p>
+            <div class="theme-toggle">
+                <button onclick="setTheme('light')" class="btn btn-secondary">☀️ Light</button>
+                <button onclick="setTheme('dark')" class="btn btn-secondary">🌙 Dark</button>
+                <button onclick="setTheme('system')" class="btn btn-secondary">💻 System</button>
+            </div>
+            <p id="current-theme-text" class="info-text">Current theme: System</p>
+        </div>
         
         <div class="settings-section">
             <h3>Database Management</h3>
@@ -52,6 +65,34 @@ fastrep delete --id 1</code></pre>
 
 {% block scripts %}
 <script>
+// Theme settings
+function updateThemeText() {
+    const theme = localStorage.getItem('theme') || 'system';
+    const text = theme.charAt(0).toUpperCase() + theme.slice(1);
+    document.getElementById('current-theme-text').textContent = `Current theme: ${text}`;
+}
+
+function setTheme(theme) {
+    if (theme === 'system') {
+        localStorage.removeItem('theme');
+        delete document.documentElement.dataset.theme;
+        // Re-apply system preference check if needed, but removing dataset.theme usually falls back to default CSS
+        // However, if we want to support system preference in CSS, we need media queries or JS detection.
+        // My CSS uses [data-theme="dark"], so removing it reverts to light.
+        // To support system dark mode properly, I should check window.matchMedia.
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+             document.documentElement.dataset.theme = 'dark';
+        }
+    } else {
+        localStorage.setItem('theme', theme);
+        document.documentElement.dataset.theme = theme;
+    }
+    updateThemeText();
+}
+
+// Initialize text
+updateThemeText();
+
 async function clearDatabase() {
     const confirmed = confirm(
         '⚠️ Are you absolutely sure you want to delete ALL log entries?\n\n' +

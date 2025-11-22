@@ -22,7 +22,8 @@ def create_app():
         """Main page with log entry form and recent logs."""
         logs = db.get_logs()
         projects = db.get_all_projects()
-        return render_template('index.html', logs=logs, projects=projects)
+        today = datetime.now().strftime('%Y-%m-%d')
+        return render_template('index.html', logs=logs, projects=projects, today=today)
     
     @app.route('/add_log', methods=['POST'])
     def add_log():
@@ -31,8 +32,11 @@ def create_app():
         description = request.form.get('description')
         date_str = request.form.get('date')
         
-        if not project or not description:
-            return jsonify({'success': False, 'error': 'Project and description are required'}), 400
+        if not description:
+            return jsonify({'success': False, 'error': 'Description is required'}), 400
+            
+        if not project:
+            project = "Misc"
         
         try:
             log_date = datetime.strptime(date_str, '%Y-%m-%d') if date_str else datetime.now()
@@ -49,6 +53,29 @@ def create_app():
         log_id = db.add_log(entry)
         return jsonify({'success': True, 'id': log_id, 'message': 'Log entry added successfully'})
     
+    @app.route('/update_log/<int:log_id>', methods=['POST'])
+    def update_log(log_id):
+        """Update a log entry."""
+        project = request.form.get('project')
+        description = request.form.get('description')
+        date_str = request.form.get('date')
+        
+        if not description:
+            return jsonify({'success': False, 'error': 'Description is required'}), 400
+            
+        if not project:
+            project = "Misc"
+            
+        try:
+            log_date = datetime.strptime(date_str, '%Y-%m-%d') if date_str else datetime.now()
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid date format'}), 400
+            
+        if db.update_log(log_id, project, description, log_date):
+            return jsonify({'success': True, 'message': 'Log entry updated'})
+        else:
+            return jsonify({'success': False, 'error': 'Log entry not found'}), 404
+
     @app.route('/delete_log/<int:log_id>', methods=['POST'])
     def delete_log(log_id):
         """Delete a log entry."""
@@ -97,7 +124,41 @@ def create_app():
 
 def open_browser():
     """Open browser after a short delay."""
-    webbrowser.open('http://127.0.0.1:5000')
+    url = 'http://127.0.0.1:5000'
+    
+    # Try to open in app mode if possible (Chrome/Chromium)
+    try:
+        # Common browser commands with app mode argument
+        browser_commands = [
+            ['google-chrome', '--app=' + url],
+            ['chromium-browser', '--app=' + url],
+            ['chromium', '--app=' + url],
+            ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '--app=' + url]
+        ]
+        
+        import subprocess
+        for cmd in browser_commands:
+            try:
+                # Check if executable exists (except for mac app path)
+                if cmd[0].startswith('/') and os.path.exists(cmd[0]):
+                    subprocess.Popen(cmd)
+                    return
+                
+                # For commands in path, this check is harder without 'which', 
+                # so we just try to execute and catch exception
+                if not cmd[0].startswith('/'):
+                    subprocess.Popen(cmd)
+                    return
+            except FileNotFoundError:
+                continue
+            except Exception:
+                continue
+                
+    except Exception:
+        pass
+        
+    # Fallback to default browser
+    webbrowser.open(url)
 
 
 def main():

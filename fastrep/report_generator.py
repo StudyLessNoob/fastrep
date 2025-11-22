@@ -19,7 +19,7 @@ class ReportGenerator:
             start_date = today - timedelta(days=13)
             end_date = today
         elif mode == 'monthly':
-            start_date = today - timedelta(days=29)
+            start_date = today - timedelta(days=30)
             end_date = today
         else:
             raise ValueError(f"Unknown report mode: {mode}")

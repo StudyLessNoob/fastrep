@@ -94,6 +94,20 @@ class Database:
         
         return logs
     
+    def update_log(self, log_id: int, project: str, description: str, date: datetime) -> bool:
+        """Update an existing log entry."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE logs 
+            SET project = ?, description = ?, date = ?
+            WHERE id = ?
+        ''', (project, description, date.strftime('%Y-%m-%d'), log_id))
+        updated = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return updated
+
     def delete_log(self, log_id: int) -> bool:
         """Delete a log entry by ID."""
         conn = sqlite3.connect(self.db_path)

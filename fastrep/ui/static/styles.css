@@ -18,6 +18,20 @@
     --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
 }
 
+[data-theme="dark"] {
+    --primary-color: #3b82f6;
+    --primary-hover: #60a5fa;
+    --secondary-color: #94a3b8;
+    --success-color: #10b981;
+    --danger-color: #ef4444;
+    --background: #0f172a;
+    --card-background: #1e293b;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --border-color: #334155;
+    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     background: var(--background);
@@ -113,6 +127,8 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 6px;
     font-size: 1rem;
+    background: var(--card-background);
+    color: var(--text-primary);
     transition: border-color 0.2s;
 }
 
@@ -120,6 +136,44 @@ body {
 .form-group textarea:focus {
     outline: none;
     border-color: var(--primary-color);
+}
+
+/* Compact Form */
+.compact-form h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.form-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.col-half {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.compact-form .form-group {
+    margin-bottom: 1rem;
+}
+
+.compact-form label {
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+}
+
+.compact-form input,
+.compact-form textarea {
+    padding: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.form-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
 }
 
 .form-group textarea {
@@ -167,9 +221,8 @@ body {
     background: #dc2626;
 }
 
-.btn-delete {
+.btn-delete, .btn-edit {
     padding: 0.5rem 1rem;
-    background: var(--danger-color);
     color: white;
     border: none;
     border-radius: 4px;
@@ -178,8 +231,25 @@ body {
     transition: background 0.2s;
 }
 
+.btn-delete {
+    background: var(--danger-color);
+}
+
 .btn-delete:hover {
     background: #dc2626;
+}
+
+.btn-edit {
+    background: var(--secondary-color);
+    margin-right: 0.5rem;
+}
+
+.btn-edit:hover {
+    background: #475569;
+}
+
+.actions-cell {
+    white-space: nowrap;
 }
 
 /* Report Buttons */
