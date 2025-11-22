@@ -1,11 +1,11 @@
-# FastRep 📊
+# FastRep
 
 A powerful CLI and web-based tool for tracking daily work activities and generating professional reports.
 
 [![PyPI version](https://badge.fury.io/py/fastrep.svg)](https://badge.fury.io/py/fastrep)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Features ✨
+## Features
 
 - **Easy Logging**: Quickly log your daily work activities with project names and descriptions
 - **Automatic Reports**: Generate weekly, bi-weekly, and monthly reports instantly
@@ -18,7 +18,7 @@ A powerful CLI and web-based tool for tracking daily work activities and generat
 - **Dark/Light Theme**: Choose your preferred theme or sync with system settings
 - **App Mode**: Launches as a standalone application window for a cleaner experience
 
-## Screenshots 📸
+## Screenshots
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/hissain/fastrep/master/figures/Screenshot1.png" alt="FastRep Dashboard" width="45%">
