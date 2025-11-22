@@ -2,5 +2,4 @@ include README.md
 include LICENSE
 recursive-include fastrep/ui/templates *.html
 recursive-include fastrep/ui/static *.css
-recursive-include figures/ *.css
-
+recursive-include figures *
