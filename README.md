@@ -1,0 +1,259 @@
+# FastRep 📊
+
+A powerful CLI and web-based tool for tracking daily work activities and generating professional reports.
+
+[![PyPI version](https://badge.fury.io/py/fastrep.svg)](https://badge.fury.io/py/fastrep)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Features ✨
+
+- **📝 Easy Logging**: Quickly log your daily work activities with project names and descriptions
+- **📈 Automatic Reports**: Generate weekly, bi-weekly, and monthly reports instantly
+- **💻 Dual Interface**: Use either the command-line interface or the professional web UI
+- **🗄️ SQLite Database**: All data stored locally in a lightweight SQLite database
+- **🎯 Project Tracking**: Automatically organize logs by project
+- **📅 Flexible Dating**: Log entries for any date, not just today
+- **🔍 Easy Search**: View and filter logs by date range
+- **🗑️ Data Management**: Delete individual entries or clear entire database
+
+## Installation 🚀
+
+### From PyPI (Recommended)
+
+```bash
+pip install fastrep
+```
+
+### From Source
+
+```bash
+git clone https://github.com/hissain/fastrep.git
+cd fastrep
+pip install -e .
+```
+
+## Quick Start 🏃
+
+### Command Line Interface
+
+```bash
+# Add a work log entry
+fastrep log -p "Project Alpha" -d "Implemented user authentication"
+
+# Add a log for a specific date
+fastrep log -p "Project Beta" -d "Fixed bug #123" --date 2024-11-15
+
+# View weekly report
+fastrep view --mode weekly
+
+# View bi-weekly report
+fastrep view --mode biweekly
+
+# View monthly report
+fastrep view --mode monthly
+
+# List all entries
+fastrep list
+
+# View all projects
+fastrep projects
+
+# Delete a specific entry
+fastrep delete --id 5
+
+# Clear all data (with confirmation)
+fastrep clear
+```
+
+### Web Interface
+
+Launch the web UI:
+
+```bash
+fastrep-ui
+```
+
+The web interface will automatically open in your default browser at `http://127.0.0.1:5000`.
+
+## Usage Examples 💡
+
+### Daily Workflow
+
+```bash
+# Morning: Log yesterday's work
+fastrep log -p "API Development" -d "Completed endpoint for user profiles" --date 2024-11-20
+
+# End of day: Log today's work
+fastrep log -p "API Development" -d "Started work on authentication middleware"
+fastrep log -p "Documentation" -d "Updated API documentation"
+
+# Friday: Generate weekly report
+fastrep view --mode weekly
+```
+
+### Report Output Example
+
+```
+Report Period: 11/16 - 11/22
+============================================================
+
+Project: API Development
+------------------------------------------------------------
+  * 11/21 - Started work on authentication middleware
+  * 11/20 - Completed endpoint for user profiles
+  * 11/18 - Fixed performance issues in database queries
+
+Project: Documentation
+------------------------------------------------------------
+  * 11/21 - Updated API documentation
+  * 11/19 - Created user guide for new features
+```
+
+## CLI Commands Reference 📚
+
+### `fastrep log`
+Add a new work log entry.
+
+**Options:**
+- `-p, --project TEXT`: Project name (required)
+- `-d, --description TEXT`: Work description (required)
+- `-dt, --date TEXT`: Date in YYYY-MM-DD format (optional, defaults to today)
+
+### `fastrep view`
+View logs and generate reports.
+
+**Options:**
+- `-m, --mode [weekly|biweekly|monthly]`: Report period (default: weekly)
+- `-s, --start TEXT`: Custom start date (YYYY-MM-DD)
+- `-e, --end TEXT`: Custom end date (YYYY-MM-DD)
+
+### `fastrep list`
+List all log entries with their IDs.
+
+### `fastrep projects`
+List all unique projects.
+
+### `fastrep delete`
+Delete a specific log entry.
+
+**Options:**
+- `-i, --id INTEGER`: Log entry ID to delete (required)
+- `-y, --confirm`: Skip confirmation prompt
+
+### `fastrep clear`
+Clear all log entries from the database.
+
+**Options:**
+- `-y, --confirm`: Skip confirmation prompt
+
+## Web UI Features 🌐
+
+The web interface provides:
+
+1. **Dashboard**: Add new logs with autocomplete for project names
+2. **Recent Logs Table**: View, search, and delete entries
+3. **Report Generation**: One-click weekly, bi-weekly, and monthly reports
+4. **Copy to Clipboard**: Easy report copying for emails/documents
+5. **Settings**: Database management and configuration
+
+## Database Location 💾
+
+Logs are stored in: `~/.fastrep/fastrep.db`
+
+Both CLI and web UI use the same database, so your data is always in sync.
+
+## Development 🛠️
+
+### Setup Development Environment
+
+```bash
+git clone https://github.com/hissain/fastrep.git
+cd fastrep
+pip install -e .
+```
+
+### Running Tests
+
+```bash
+pip install pytest
+pytest tests/
+```
+
+### Project Structure
+
+```
+fastrep/
+├── fastrep/
+│   ├── __init__.py
+│   ├── cli.py              # CLI commands
+│   ├── database.py         # Database operations
+│   ├── models.py           # Data models
+│   ├── report_generator.py # Report generation logic
+│   └── ui/
+│       ├── app.py          # Flask application
+│       ├── templates/      # HTML templates
+│       └── static/         # CSS files
+├── tests/
+├── setup.py
+└── README.md
+```
+
+## Publishing to PyPI 📦
+
+### Prerequisites
+
+1. Create account on [PyPI](https://pypi.org/)
+2. Generate API token in your PyPI account settings
+3. Add the token as `PYPI_API_TOKEN` in your GitHub repository secrets
+
+### Release Process
+
+1. Update version in `setup.py`
+2. Commit changes
+3. Create and push a tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The GitHub Actions workflow will automatically:
+- Build the package
+- Publish to PyPI
+- Create a GitHub release
+
+## Contributing 🤝
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## License 📄
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Author ✍️
+
+**Your Name**
+- GitHub: [@hissain](https://github.com/hissain)
+- Email: hissain.khan@gmail.com
+
+## Acknowledgments 🙏
+
+- Built with [Click](https://click.palletsprojects.com/) for CLI
+- Web UI powered by [Flask](https://flask.palletsprojects.com/)
+- Database management with SQLite
+
+## Support 💬
+
+If you encounter any issues or have questions:
+- Open an issue on [GitHub](https://github.com/hissain/fastrep/issues)
+- Check existing issues for solutions
+
+---
+
+**Star ⭐ this repository if you find it helpful!**

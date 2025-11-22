@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - FastRep{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+    <div class="card">
+        <h2>⚙️ Settings</h2>
+        
+        <div class="settings-section">
+            <h3>Database Management</h3>
+            <p class="info-text">
+                ⚠️ Warning: Clearing the database will permanently delete all log entries. This action cannot be undone.
+            </p>
+            
+            <button onclick="clearDatabase()" class="btn btn-danger">Clear All Data</button>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Database Location</h3>
+            <p class="info-text">
+                Your logs are stored in: <code>~/.fastrep/fastrep.db</code>
+            </p>
+        </div>
+        
+        <div class="settings-section">
+            <h3>CLI Access</h3>
+            <p class="info-text">
+                You can also manage your logs using the command line:
+            </p>
+            <pre><code>fastrep log -p "Project Name" -d "Description"
+fastrep view --mode weekly
+fastrep list
+fastrep delete --id 1</code></pre>
+        </div>
+        
+        <div class="settings-section">
+            <h3>About</h3>
+            <p class="info-text">
+                FastRep v1.0.0<br>
+                A simple work log manager for tracking daily activities and generating reports.<br>
+                <a href="https://github.com/hissain/fastrep" target="_blank">GitHub Repository</a>
+            </p>
+        </div>
+    </div>
+    
+    <div class="card">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">← Back to Home</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function clearDatabase() {
+    const confirmed = confirm(
+        '⚠️ Are you absolutely sure you want to delete ALL log entries?\n\n' +
+        'This action cannot be undone!'
+    );
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    const doubleCheck = confirm(
+        'This is your last chance!\n\n' +
+        'Click OK to permanently delete all data.'
+    );
+    
+    if (!doubleCheck) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/clear_all', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✓ All data has been cleared successfully.');
+            window.location.href = '/';
+        } else {
+            alert('✗ Error clearing database');
+        }
+    } catch (error) {
+        alert('✗ Error clearing database');
+    }
+}
+</script>
+{% endblock %}
