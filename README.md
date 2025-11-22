@@ -85,6 +85,14 @@ fastrep-ui
 
 The web interface will automatically open in your default browser at `http://127.0.0.1:5000`.
 
+You can also specify a custom port:
+
+```bash
+fastrep-ui --port 8080
+# or
+fastrep-ui -p 8080
+```
+
 ## Usage Examples
 
 ### Daily Workflow

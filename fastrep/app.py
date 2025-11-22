@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for
 from datetime import datetime
 import os
 import webbrowser
+import click
 from threading import Timer
 from .database import Database
 from .models import LogEntry
@@ -122,9 +123,9 @@ def create_app():
     return app
 
 
-def open_browser():
+def open_browser(port=5000):
     """Open browser after a short delay."""
-    url = 'http://127.0.0.1:5000'
+    url = f'http://127.0.0.1:{port}'
     
     # Try to open in app mode if possible (Chrome/Chromium)
     try:
@@ -161,14 +162,16 @@ def open_browser():
     webbrowser.open(url)
 
 
-def main():
+@click.command()
+@click.option('--port', '-p', default=5000, help='Port to run the server on')
+def main(port):
     """Main entry point for fastrep-ui command."""
     app = create_app()
     
     print("=" * 60)
     print("FastRep Web UI Starting...")
     print("=" * 60)
-    print("\n🚀 Access the web interface at: http://127.0.0.1:5000")
+    print(f"\n🚀 Access the web interface at: http://127.0.0.1:{port}")
     print("\n📝 Features:")
     print("  • Add and manage work logs")
     print("  • Generate weekly, bi-weekly, and monthly reports")
@@ -177,9 +180,9 @@ def main():
     print("=" * 60)
     
     # Open browser after 1.5 seconds
-    Timer(1.5, open_browser).start()
+    Timer(1.5, open_browser, args=[port]).start()
     
-    app.run(debug=False, port=5000, host='127.0.0.1')
+    app.run(debug=False, port=port, host='127.0.0.1')
 
 
 if __name__ == '__main__':
