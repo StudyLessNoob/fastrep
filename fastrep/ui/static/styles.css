@@ -97,9 +97,39 @@ body {
 }
 
 .card h2 {
-    margin-bottom: 1.5rem;
+    margin-bottom: 0;
     color: var(--text-primary);
     font-size: 1.5rem;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    margin-bottom: 1.5rem;
+}
+
+.card-header .toggle-icon {
+    font-size: 1.2rem;
+    transition: transform 0.3s;
+}
+
+.card.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.card-content {
+    transition: max-height 0.3s ease-out;
+    overflow: hidden;
+}
+
+.card.collapsed .card-content {
+    display: none;
+}
+
+.card.collapsed .card-header {
+    margin-bottom: 0;
 }
 
 .card h3 {

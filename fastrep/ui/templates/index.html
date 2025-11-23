@@ -12,10 +12,14 @@
 
 <div class="dashboard">
     <!-- Add Log Entry Form -->
-    <div class="card compact-form">
-        <h2 id="form-title">📝 Add Work Log</h2>
-        <form id="logForm">
-            <input type="hidden" id="logId" name="logId" value="">
+    <div class="card compact-form {% if report %}collapsed{% endif %}">
+        <div class="card-header" onclick="toggleCard(this)">
+            <h2 id="form-title">📝 Add Work Log</h2>
+            <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-content">
+            <form id="logForm">
+                <input type="hidden" id="logId" name="logId" value="">
             <div class="form-row">
                 <div class="form-group col-half">
                     <label for="project">Project Name</label>
@@ -38,55 +42,65 @@
                 <textarea id="description" name="description" rows="2" required></textarea>
             </div>
             
-            <div class="form-actions">
-                <button type="submit" id="submitBtn" class="btn btn-primary">Add Log Entry</button>
-                <button type="button" id="cancelBtn" class="btn btn-secondary" style="display:none;" onclick="resetForm()">Cancel</button>
-            </div>
-        </form>
-        <div id="message" class="message"></div>
+                <div class="form-actions">
+                    <button type="submit" id="submitBtn" class="btn btn-primary">Add Log Entry</button>
+                    <button type="button" id="cancelBtn" class="btn btn-secondary" style="display:none;" onclick="resetForm()">Cancel</button>
+                </div>
+            </form>
+            <div id="message" class="message"></div>
+        </div>
     </div>
     
     <!-- Reports Section -->
-    <div class="card">
-        <h2>📈 Generate Reports</h2>
-        <div class="report-buttons">
-            <a href="{{ url_for('report', mode='weekly') }}" class="btn btn-secondary" onclick="showLoading()">Weekly Report</a>
-            <a href="{{ url_for('report', mode='biweekly') }}" class="btn btn-secondary" onclick="showLoading()">Bi-weekly Report</a>
-            <a href="{{ url_for('report', mode='monthly') }}" class="btn btn-secondary" onclick="showLoading()">Monthly Report</a>
+    <div class="card {% if not report %}collapsed{% endif %}">
+        <div class="card-header" onclick="toggleCard(this)">
+            <h2>📈 Generate Reports</h2>
+            <span class="toggle-icon">▼</span>
         </div>
-        
-        {% if report %}
-        <div class="report-output">
-            <h3>{{ report_mode|title }} Report</h3>
-            <div class="report-content">
-                {{ report|safe }}
+        <div class="card-content">
+            <div class="report-buttons">
+                <a href="{{ url_for('report', mode='weekly') }}" class="btn btn-secondary" onclick="showLoading()">Weekly Report</a>
+                <a href="{{ url_for('report', mode='biweekly') }}" class="btn btn-secondary" onclick="showLoading()">Bi-weekly Report</a>
+                <a href="{{ url_for('report', mode='monthly') }}" class="btn btn-secondary" onclick="showLoading()">Monthly Report</a>
             </div>
-            {% if report_text %}
-            <pre id="report-text" style="display:none;">{{ report_text }}</pre>
-            <button onclick="copyReport()" class="btn btn-secondary">Copy to Clipboard</button>
+            
+            {% if report %}
+            <div class="report-output">
+                <h3>{{ report_mode|title }} Report</h3>
+                <div class="report-content">
+                    {{ report|safe }}
+                </div>
+                {% if report_text %}
+                <pre id="report-text" style="display:none;">{{ report_text }}</pre>
+                <button onclick="copyReport()" class="btn btn-secondary">Copy to Clipboard</button>
+                {% endif %}
+            </div>
             {% endif %}
         </div>
-        {% endif %}
     </div>
     
     <!-- Recent Logs -->
-    <div class="card">
-        <h2>📋 Recent Logs</h2>
-        {% if logs %}
-        <div class="table-responsive">
-            <table class="logs-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Date</th>
-                        <th>Project</th>
-                        <th>Description</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for log in logs[:20] %}
-                    <tr id="log-{{ log.id }}">
+    <div class="card collapsed">
+        <div class="card-header" onclick="toggleCard(this)">
+            <h2>📋 Recent Logs</h2>
+            <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-content">
+            {% if logs %}
+            <div class="table-responsive">
+                <table class="logs-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Date</th>
+                            <th>Project</th>
+                            <th>Description</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr id="log-{{ log.id }}">
                         <td>{{ log.id }}</td>
                         <td>{{ log.date.strftime('%Y-%m-%d') }}</td>
                         <td><span class="badge">{{ log.project }}</span></td>
@@ -96,20 +110,26 @@
                             <button onclick="deleteLog({{ log.id }})" class="btn-delete">Delete</button>
                         </td>
                     </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="info-text">Showing {{ logs|length }} of {{ total_logs }} total logs</p>
+            {% else %}
+            <p class="empty-state">No logs found. Add your first log entry above!</p>
+            {% endif %}
         </div>
-        <p class="info-text">Showing {{ logs[:20]|length }} of {{ logs|length }} total logs</p>
-        {% else %}
-        <p class="empty-state">No logs found. Add your first log entry above!</p>
-        {% endif %}
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+function toggleCard(header) {
+    const card = header.parentElement;
+    card.classList.toggle('collapsed');
+}
+
 // Handle form submission
 document.getElementById('logForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -218,13 +238,13 @@ function showLoading() {
     const overlay = document.getElementById('loading-overlay');
     overlay.style.display = 'flex';
     
-    // Timeout after 120 seconds
+    // Timeout after 300 seconds (5 minutes) to allow for parallel AI processing
     setTimeout(() => {
         if (overlay.style.display === 'flex') {
             overlay.style.display = 'none';
-            alert('Report generation timed out or is taking longer than expected. The report may still load, or you may need to refresh.');
+            alert('Report generation timed out. The process may have taken too long. Please check the logs.');
         }
-    }, 120000);
+    }, 300000);
 }
 </script>
 {% endblock %}

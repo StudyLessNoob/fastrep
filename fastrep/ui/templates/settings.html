@@ -37,6 +37,36 @@
                 </label>
                 <span id="ai-toggle-label">Enable Monthly Summaries</span>
             </div>
+            
+            <div class="form-group" style="margin-top: 1rem;">
+                <label for="ai-points">Number of Summary Points</label>
+                <input type="text" id="ai-points" placeholder="e.g. 3-5" onchange="updateAiSettings()" style="width: 200px;">
+                <p class="info-text" style="margin-top: 0.25rem;">Specify a range (e.g. "3-5") or a fixed number (e.g. "5").</p>
+            </div>
+
+            <div class="form-group" style="margin-top: 1rem;">
+                <label for="ai-timeout">Timeout (seconds)</label>
+                <input type="number" id="ai-timeout" placeholder="120" onchange="updateAiSettings()" style="width: 200px;">
+                <p class="info-text" style="margin-top: 0.25rem;">Maximum time to wait for AI response per project.</p>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h3>Preferences</h3>
+            
+            <div class="form-group">
+                <label for="recent-limit">Recent Logs Limit</label>
+                <input type="number" id="recent-limit" placeholder="20" onchange="updatePreferences()" style="width: 200px;">
+                <p class="info-text" style="margin-top: 0.25rem;">Number of recent logs to display on dashboard.</p>
+            </div>
+            
+            <div class="toggle-container">
+                <label class="switch">
+                    <input type="checkbox" id="auto-browser" onchange="updatePreferences()">
+                    <span class="slider round"></span>
+                </label>
+                <span>Auto-open Browser on Startup</span>
+            </div>
         </div>
         
         <div class="settings-section">
@@ -69,7 +99,7 @@ fastrep delete --id 1</code></pre>
         <div class="settings-section">
             <h3>About</h3>
             <p class="info-text">
-                FastRep v2.0.0<br>
+                FastRep v2.0.1<br>
                 A simple work log manager for tracking daily activities and generating reports.<br>
                 <a href="https://github.com/hissain/fastrep" target="_blank">GitHub Repository</a>
             </p>
@@ -132,9 +162,39 @@ async function loadAiSettings() {
         }
         
         toggle.checked = settings.ai_summary_enabled;
+        if (settings.ai_summary_points) {
+            document.getElementById('ai-points').value = settings.ai_summary_points;
+        }
+        if (settings.ai_timeout) {
+            document.getElementById('ai-timeout').value = settings.ai_timeout;
+        }
+        
+        // Preferences
+        if (settings.recent_logs_limit) {
+            document.getElementById('recent-limit').value = settings.recent_logs_limit;
+        }
+        document.getElementById('auto-browser').checked = settings.auto_open_browser;
         
     } catch (error) {
         console.error('Error loading settings:', error);
+    }
+}
+
+async function updatePreferences() {
+    const limit = document.getElementById('recent-limit').value;
+    const autoBrowser = document.getElementById('auto-browser').checked;
+    
+    try {
+        await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                recent_logs_limit: limit,
+                auto_open_browser: autoBrowser
+            })
+        });
+    } catch (error) {
+        console.error('Error updating preferences:', error);
     }
 }
 
@@ -149,6 +209,23 @@ async function toggleAiSummary() {
     } catch (error) {
         console.error('Error updating settings:', error);
         toggle.checked = !toggle.checked; // Revert on error
+    }
+}
+
+async function updateAiSettings() {
+    const points = document.getElementById('ai-points').value;
+    const timeout = document.getElementById('ai-timeout').value;
+    try {
+        await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                ai_summary_points: points,
+                ai_timeout: timeout 
+            })
+        });
+    } catch (error) {
+        console.error('Error updating settings:', error);
     }
 }
 

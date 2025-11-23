@@ -4,8 +4,11 @@ from collections import defaultdict
 import subprocess
 import tempfile
 import os
+import logging
+import time
 from .models import LogEntry
 
+logger = logging.getLogger(__name__)
 
 class ReportGenerator:
     """Generate formatted reports from log entries."""
@@ -43,16 +46,17 @@ class ReportGenerator:
         return dict(grouped)
     
     @staticmethod
-    def summarize_project_logs(project: str, logs: List[LogEntry], verbose: bool = False) -> List[str]:
+    def summarize_project_logs(project: str, logs: List[LogEntry], verbosity: int = 0, summary_points: str = "3-5", timeout: int = 120) -> List[str]:
         """Summarize logs using cline CLI."""
-        # Create a temporary file for output
-        with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt') as tmp:
-            output_file = tmp.name
+        # Create a temporary file in .fastrep/temp to avoid permission issues
+        temp_dir = os.path.join(os.path.expanduser("~"), ".fastrep", "temp")
+        os.makedirs(temp_dir, exist_ok=True)
+        output_file = os.path.join(temp_dir, f"summary_{project.replace(' ', '_')}_{int(time.time())}.txt")
             
         logs_text = "\n".join([f"- {log.date.strftime('%Y-%m-%d')}: {log.description}" for log in logs])
         
         prompt = (
-            f"Summarize the following work logs for project '{project}' into 3-5 concise bullet points. "
+            f"Summarize the following work logs for project '{project}' into {summary_points} concise bullet points. "
             f"Focus on key achievements and tasks. "
             f"Each bullet point MUST include the relevant date or date range (e.g., '11/15 - Implemented X' or '11/15-11/17 - Fixed Y'). "
             f"Ensure the text is grammatically correct and professional. "
@@ -61,59 +65,84 @@ class ReportGenerator:
             f"Logs:\n{logs_text}"
         )
         
-        if verbose:
-            print(f"\n[VERBOSE] Summarizing project: {project}")
-            print(f"[VERBOSE] Prompt length: {len(prompt)} chars")
-            print(f"[VERBOSE] Output file: {output_file}")
-            print(f"[VERBOSE] Executing: cline [prompt] --yolo --mode act")
+        logger.info(f"Summarizing project: {project} (Points: {summary_points}, Timeout: {timeout}s)")
+        logger.debug(f"Prompt:\n{prompt}")
         
         try:
             # Call cline CLI
+            # Use stdin=subprocess.DEVNULL to prevent hanging on interactive prompts
             result = subprocess.run(['cline', prompt, '--yolo', '--mode', 'act'], 
                          check=True, 
                          capture_output=True,
-                         text=True)
+                         text=True,
+                         stdin=subprocess.DEVNULL,
+                         timeout=timeout)
             
-            if verbose:
-                print(f"[VERBOSE] CLI Return Code: {result.returncode}")
-                if result.stdout:
-                    print(f"[VERBOSE] CLI Stdout (truncated): {result.stdout[:200]}...")
-                if result.stderr:
-                    print(f"[VERBOSE] CLI Stderr (truncated): {result.stderr[:200]}...")
+            logger.debug(f"CLI Output:\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}")
             
             # Read result
             with open(output_file, 'r') as f:
                 summary = f.read().strip()
                 
             if summary:
-                if verbose:
-                    print(f"[VERBOSE] Summary obtained ({len(summary)} chars)")
+                logger.info(f"Summary obtained ({len(summary)} chars)")
+                logger.debug(f"Summary Content:\n{summary}")
                 return summary.split('\n')
             else:
-                if verbose:
-                    print(f"[VERBOSE] Warning: Summary file was empty")
+                logger.warning("Summary file was empty")
                     
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timeout summarizing logs for {project} ({timeout}s)")
         except Exception as e:
-            print(f"Error summarizing logs for {project}: {e}")
-            if verbose:
-                import traceback
-                traceback.print_exc()
+            logger.error(f"Error summarizing logs for {project}: {e}", exc_info=True)
             
         finally:
             if os.path.exists(output_file):
                 os.remove(output_file)
                 
-        # Fallback if summarization fails
-        if verbose:
-            print(f"[VERBOSE] Falling back to raw logs for {project}")
-        return [f"{log.date.strftime('%m/%d')} - {log.description}" for log in logs]
+        # Fallback if summarization fails: Return up to 10 recent logs
+        logger.info(f"Falling back to recent logs (max 10) for {project}")
+        
+        recent_logs = logs[:10]
+        formatted_logs = [f"{log.date.strftime('%m/%d')} - {log.description}" for log in recent_logs]
+        
+        if len(logs) > 10:
+            formatted_logs.append(f"... and {len(logs) - 10} more entries.")
+            
+        return formatted_logs
 
     @staticmethod
-    def improve_report_text(report_text: str, verbose: bool = False) -> str:
+    def generate_summaries(logs: List[LogEntry], mode: str, summarize: bool, verbosity: int = 0, summary_points: str = "3-5", timeout: int = 120) -> dict:
+        """Generate AI summaries for projects if needed."""
+        if not summarize or mode != 'monthly':
+            return {}
+            
+        grouped = ReportGenerator.group_by_project(logs)
+        summaries = {}
+        
+        # Process sequentially to avoid Rate Limits (429)
+        for project, project_logs in grouped.items():
+            if len(project_logs) > 5:
+                logger.info(f"Processing summary for: {project}")
+                try:
+                    result = ReportGenerator.summarize_project_logs(
+                        project, project_logs, verbosity, summary_points, timeout
+                    )
+                    summaries[project] = result
+                    # Small delay to be nice to the API
+                    time.sleep(2)
+                except Exception as e:
+                    logger.error(f"Failed to summarize {project}: {e}")
+                    
+        return summaries
+
+    @staticmethod
+    def improve_report_text(report_text: str, verbosity: int = 0) -> str:
         """Improve the grammar and tone of the full report text."""
         # Create a temporary file for output
-        with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt') as tmp:
-            output_file = tmp.name
+        temp_dir = os.path.join(os.path.expanduser("~"), ".fastrep", "temp")
+        os.makedirs(temp_dir, exist_ok=True)
+        output_file = os.path.join(temp_dir, f"improved_report_{int(time.time())}.txt")
             
         prompt = (
             f"Review and improve the following work report. "
@@ -124,29 +153,28 @@ class ReportGenerator:
             f"Report:\n{report_text}"
         )
         
-        if verbose:
-            print(f"\n[VERBOSE] Improving full report text")
-            print(f"[VERBOSE] Prompt length: {len(prompt)} chars")
+        logger.info("Improving full report text")
+        logger.debug(f"Improvement Prompt:\n{prompt}")
         
         try:
-            subprocess.run(['cline', prompt, '--yolo', '--mode', 'act'], 
+            result = subprocess.run(['cline', prompt, '--yolo', '--mode', 'act'], 
                          check=True, 
                          capture_output=True,
-                         text=True)
+                         text=True,
+                         stdin=subprocess.DEVNULL,
+                         timeout=120)
+            
+            logger.debug(f"CLI Output:\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}")
             
             with open(output_file, 'r') as f:
                 improved_text = f.read().strip()
                 
             if improved_text:
-                if verbose:
-                    print(f"[VERBOSE] Report improved successfully")
+                logger.info("Report improved successfully")
                 return improved_text
                 
         except Exception as e:
-            print(f"Error improving report: {e}")
-            if verbose:
-                import traceback
-                traceback.print_exc()
+            logger.error(f"Error improving report: {e}", exc_info=True)
                 
         finally:
             if os.path.exists(output_file):
@@ -155,12 +183,13 @@ class ReportGenerator:
         return report_text
 
     @staticmethod
-    def format_report(logs: List[LogEntry], mode: str = None, summarize: bool = False, verbose: bool = False) -> str:
+    def format_report(logs: List[LogEntry], mode: str = None, summaries: dict = None, verbosity: int = 0) -> str:
         """Format logs into a readable report."""
         if not logs:
             return "No logs found for this period."
         
         grouped = ReportGenerator.group_by_project(logs)
+        summaries = summaries or {}
         
         report_lines = []
         
@@ -176,17 +205,31 @@ class ReportGenerator:
             
             project_logs = grouped[project]
             
-            should_summarize = summarize and len(project_logs) > 5
-            
-            if verbose:
-                print(f"[VERBOSE] Project: {project}, Logs: {len(project_logs)}, Should summarize: {should_summarize}")
-            
-            if should_summarize:
+            if project in summaries:
                 report_lines.append("(AI Summary)")
-                summary_lines = ReportGenerator.summarize_project_logs(project, project_logs, verbose)
-                for line in summary_lines:
+                for line in summaries[project]:
                     report_lines.append(f"  {line}")
             else:
+                # If summarized but no summary (fallback) or normal
+                # Check if we should fallback (e.g. > 5 logs but no summary)
+                # But generate_summaries handles the decision. 
+                # If key missing, print normally or fallback.
+                # If user wanted summary but failed, generate_summaries returns empty for that project?
+                # Let's assume if >10 logs and no summary, fallback logic applies here too?
+                # No, let's keep it simple: if in summaries dict, use it. Else raw.
+                # If generate_summaries failed, it didn't add to dict.
+                # We should probably implement the fallback here: if > 5 logs and mode==monthly and no summary, slice.
+                # But `summaries` is the source of truth for "AI content".
+                # I'll stick to raw logs if no summary.
+                # Wait, user wanted fallback to 10 logs if AI fails.
+                # I'll just show all logs or slice to 10 if it looks like it was supposed to be summarized?
+                # Actually, `format_report` doesn't know if it *failed*.
+                # Let's just show logs.
+                
+                # Wait, if I want consistent behavior with previous step:
+                # I should probably slice if > 10 logs regardless?
+                # No, user only said fallback if AI times out.
+                
                 for log in project_logs:
                     date_str = log.date.strftime('%m/%d')
                     report_lines.append(f"  * {date_str} - {log.description}")
@@ -195,18 +238,19 @@ class ReportGenerator:
         
         final_text = "\n".join(report_lines)
         
-        if summarize:
-            return ReportGenerator.improve_report_text(final_text, verbose)
+        if summaries:
+            return ReportGenerator.improve_report_text(final_text, verbosity)
             
         return final_text
     
     @staticmethod
-    def format_report_html(logs: List[LogEntry], mode: str = None, summarize: bool = False, verbose: bool = False) -> str:
+    def format_report_html(logs: List[LogEntry], mode: str = None, summaries: dict = None) -> str:
         """Format logs into HTML report."""
         if not logs:
             return "<p>No logs found for this period.</p>"
         
         grouped = ReportGenerator.group_by_project(logs)
+        summaries = summaries or {}
         
         html_parts = []
         
@@ -219,17 +263,10 @@ class ReportGenerator:
             
             project_logs = grouped[project]
             
-            should_summarize = summarize and len(project_logs) > 5
-            
-            if verbose:
-                print(f"[VERBOSE] HTML - Project: {project}, Logs: {len(project_logs)}, Should summarize: {should_summarize}")
-            
-            if should_summarize:
+            if project in summaries:
                 html_parts.append("<p><em>(AI Summary)</em></p>")
                 html_parts.append("<ul>")
-                summary_lines = ReportGenerator.summarize_project_logs(project, project_logs, verbose)
-                for line in summary_lines:
-                    # Clean up bullet points if they exist in the output
+                for line in summaries[project]:
                     line = line.lstrip('-*• ')
                     html_parts.append(f"<li>{line}</li>")
                 html_parts.append("</ul>")

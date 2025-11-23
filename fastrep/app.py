@@ -4,19 +4,63 @@ import os
 import shutil
 import webbrowser
 import click
+import logging
+import signal
+import atexit
+import sys
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from threading import Timer
 from .database import Database
 from .models import LogEntry
 from .report_generator import ReportGenerator
 
 
-def create_app(verbose=False):
+def setup_logging(verbosity=0):
+    """Configure logging with rotating file handler."""
+    log_dir = Path.home() / '.fastrep' / 'logs'
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / 'fastrep.log'
+    
+    # Set level based on verbosity
+    if verbosity >= 2:
+        level = logging.DEBUG # Trace/Full content
+    elif verbosity == 1:
+        level = logging.INFO # Verbose steps
+    else:
+        level = logging.WARNING # Minimal
+        
+    # Formatter
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # File Handler (Rotating)
+    file_handler = RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=3)
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(level)
+    
+    # Console Handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(level)
+    
+    # Root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    
+    # Suppress werkzeug logs unless very verbose
+    if verbosity < 2:
+        logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
+
+def create_app(verbosity=0):
     """Create and configure Flask application."""
     app = Flask(__name__,
                 template_folder=os.path.join(os.path.dirname(__file__), 'ui', 'templates'),
                 static_folder=os.path.join(os.path.dirname(__file__), 'ui', 'static'))
     app.config['SECRET_KEY'] = os.urandom(24)
-    app.config['VERBOSE'] = verbose
+    app.config['VERBOSITY'] = verbosity
     
     db = Database()
     
@@ -24,9 +68,19 @@ def create_app(verbose=False):
     def index():
         """Main page with log entry form and recent logs."""
         logs = db.get_logs()
+        
+        # Respect recent logs limit setting
+        try:
+            limit = int(db.get_setting('recent_logs_limit', '20'))
+        except ValueError:
+            limit = 20
+            
+        recent_logs = logs[:limit]
+        total_logs = len(logs)
+        
         projects = db.get_all_projects()
         today = datetime.now().strftime('%Y-%m-%d')
-        return render_template('index.html', logs=logs, projects=projects, today=today)
+        return render_template('index.html', logs=recent_logs, total_logs=total_logs, projects=projects, today=today)
     
     @app.route('/add_log', methods=['POST'])
     def add_log():
@@ -95,25 +149,35 @@ def create_app(verbose=False):
         
         # Check settings for summarization
         summarize = False
-        verbose = app.config.get('VERBOSE', False)
+        summary_points = "3-5"
+        timeout = 120
+        verbosity = app.config.get('VERBOSITY', 0)
+        logger = logging.getLogger(__name__)
         
         if mode == 'monthly':
             cline_avail = is_cline_available()
             enabled = db.get_setting('ai_summary_enabled') == 'true'
+            summary_points = db.get_setting('ai_summary_points', '3-5')
+            try:
+                timeout = int(db.get_setting('ai_timeout', '120'))
+            except ValueError:
+                timeout = 120
+                
             summarize = cline_avail and enabled
             
-            if verbose:
-                print(f"[VERBOSE] Monthly report requested. Summarization: {summarize}")
-                print(f"[VERBOSE] Cline available: {cline_avail}, Enabled setting: {enabled}")
+            logger.info(f"Monthly report requested. Summarization: {summarize}")
+            logger.debug(f"Cline available: {cline_avail}, Enabled: {enabled}, Points: {summary_points}, Timeout: {timeout}")
         
         start_date, end_date = ReportGenerator.get_date_range(mode)
         logs = db.get_logs(start_date, end_date)
         
-        if verbose:
-            print(f"[VERBOSE] Found {len(logs)} logs for period {start_date} - {end_date}")
+        logger.info(f"Found {len(logs)} logs for period {start_date} - {end_date}")
         
-        report_html = ReportGenerator.format_report_html(logs, mode, summarize, verbose)
-        report_text = ReportGenerator.format_report(logs, mode, summarize, verbose)
+        # Generate summaries once
+        summaries = ReportGenerator.generate_summaries(logs, mode, summarize, verbosity, summary_points, timeout)
+        
+        report_html = ReportGenerator.format_report_html(logs, mode, summaries)
+        report_text = ReportGenerator.format_report(logs, mode, summaries, verbosity)
         
         return render_template('index.html', 
                              logs=db.get_logs(), 
@@ -132,6 +196,10 @@ def create_app(verbose=False):
         """Get all settings and system capabilities."""
         settings = {
             'ai_summary_enabled': db.get_setting('ai_summary_enabled') == 'true',
+            'ai_summary_points': db.get_setting('ai_summary_points', '3-5'),
+            'ai_timeout': int(db.get_setting('ai_timeout', '120')),
+            'recent_logs_limit': int(db.get_setting('recent_logs_limit', '20')),
+            'auto_open_browser': db.get_setting('auto_open_browser', 'true') == 'true',
             'cline_available': is_cline_available()
         }
         return jsonify(settings)
@@ -142,6 +210,14 @@ def create_app(verbose=False):
         data = request.json
         if 'ai_summary_enabled' in data:
             db.set_setting('ai_summary_enabled', 'true' if data['ai_summary_enabled'] else 'false')
+        if 'ai_summary_points' in data:
+            db.set_setting('ai_summary_points', str(data['ai_summary_points']))
+        if 'ai_timeout' in data:
+            db.set_setting('ai_timeout', str(data['ai_timeout']))
+        if 'recent_logs_limit' in data:
+            db.set_setting('recent_logs_limit', str(data['recent_logs_limit']))
+        if 'auto_open_browser' in data:
+            db.set_setting('auto_open_browser', 'true' if data['auto_open_browser'] else 'false')
         return jsonify({'success': True})
     
     @app.route('/clear_all', methods=['POST'])
@@ -164,56 +240,87 @@ def is_cline_available():
     return shutil.which('cline') is not None
 
 
+# Global variable to store browser process
+browser_process = None
+browser_launched = False
+
+def cleanup_browser():
+    """Kill the browser process on exit."""
+    global browser_process
+    if browser_process:
+        try:
+            browser_process.terminate()
+        except Exception:
+            pass
+
 def open_browser(port=5000):
     """Open browser after a short delay."""
-    url = f'http://127.0.0.1:{port}'
+    global browser_process, browser_launched
     
-    # Try to open in app mode if possible (Chrome/Chromium)
+    if browser_launched:
+        return
+    browser_launched = True
+    
+    url = f'http://127.0.0.1:{port}'
+    logger = logging.getLogger(__name__)
+    
     try:
-        # Common browser commands with app mode argument
+        import subprocess
+        
+        # macOS specific handling using 'open' command for reliable App Mode
+        if sys.platform == 'darwin':
+            try:
+                subprocess.Popen(['open', '-n', '-a', 'Google Chrome', '--args', f'--app={url}'])
+                return
+            except Exception as e:
+                logger.debug(f"Failed to launch Chrome on macOS: {e}")
+        
+        # Linux/Windows/Fallback commands
         browser_commands = [
             ['google-chrome', '--app=' + url],
             ['chromium-browser', '--app=' + url],
-            ['chromium', '--app=' + url],
-            ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '--app=' + url]
+            ['chromium', '--app=' + url]
         ]
         
-        import subprocess
         for cmd in browser_commands:
             try:
-                # Check if executable exists (except for mac app path)
-                if cmd[0].startswith('/') and os.path.exists(cmd[0]):
-                    subprocess.Popen(cmd)
-                    return
+                if shutil.which(cmd[0]) is None:
+                    continue
+
+                # Launch and store process
+                browser_process = subprocess.Popen(cmd)
                 
-                # For commands in path, this check is harder without 'which', 
-                # so we just try to execute and catch exception
-                if not cmd[0].startswith('/'):
-                    subprocess.Popen(cmd)
-                    return
-            except FileNotFoundError:
-                continue
-            except Exception:
+                # Register cleanup
+                atexit.register(cleanup_browser)
+                signal.signal(signal.SIGINT, lambda s, f: (cleanup_browser(), exit(0)))
+                return
+                
+            except Exception as e:
+                logger.debug(f"Failed to launch browser with cmd {cmd}: {e}")
                 continue
                 
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Browser launch exception: {e}")
         pass
         
     # Fallback to default browser
+    logger.info("Falling back to system default browser")
     webbrowser.open(url)
 
 
 @click.command()
 @click.option('--port', '-p', default=5000, help='Port to run the server on')
-@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output for debugging')
-def main(port, verbose):
+@click.option('--verbose', '-v', count=True, help='Enable verbose output (-v for info, -vv for full debug)')
+@click.option('--no-browser', '-n', is_flag=True, help='Do not open browser automatically')
+def main(port, verbose, no_browser):
     """Main entry point for fastrep-ui command."""
+    setup_logging(verbose)
     app = create_app(verbose)
     
     print("=" * 60)
     print("FastRep Web UI Starting...")
-    if verbose:
-        print("[VERBOSE] Verbose mode enabled")
+    if verbose > 0:
+        print(f"[VERBOSE] Verbosity level: {verbose}")
     print("=" * 60)
     print(f"\n🚀 Access the web interface at: http://127.0.0.1:{port}")
     print("\n📝 Features:")
@@ -223,8 +330,15 @@ def main(port, verbose):
     print("\n⌨️  Press CTRL+C to stop the server\n")
     print("=" * 60)
     
-    # Open browser after 1.5 seconds
-    Timer(1.5, open_browser, args=[port]).start()
+    # Check DB setting for auto open
+    db = Database()
+    auto_open = db.get_setting('auto_open_browser', 'true') == 'true'
+    
+    if not no_browser and auto_open:
+        # Check if we are in the main process (not reloader)
+        if not os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+            # Open browser after 1.5 seconds
+            Timer(1.5, open_browser, args=[port]).start()
     
     app.run(debug=False, port=port, host='127.0.0.1')
 
