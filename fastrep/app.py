@@ -5,8 +5,6 @@ import shutil
 import webbrowser
 import click
 import logging
-import signal
-import atexit
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -324,71 +322,9 @@ def is_cline_available():
     return shutil.which('cline') is not None
 
 
-# Global variable to store browser process
-browser_process = None
-browser_launched = False
-
-def cleanup_browser():
-    """Kill the browser process on exit."""
-    global browser_process
-    if browser_process:
-        try:
-            browser_process.terminate()
-        except Exception:
-            pass
-
 def open_browser(port=5000):
     """Open browser after a short delay."""
-    global browser_process, browser_launched
-    
-    if browser_launched:
-        return
-    browser_launched = True
-    
     url = f'http://127.0.0.1:{port}'
-    logger = logging.getLogger(__name__)
-    
-    try:
-        import subprocess
-        
-        # macOS specific handling using 'open' command for reliable App Mode
-        if sys.platform == 'darwin':
-            try:
-                subprocess.Popen(['open', '-n', '-a', 'Google Chrome', '--args', f'--app={url}'])
-                return
-            except Exception as e:
-                logger.debug(f"Failed to launch Chrome on macOS: {e}")
-        
-        # Linux/Windows/Fallback commands
-        browser_commands = [
-            ['google-chrome', '--app=' + url],
-            ['chromium-browser', '--app=' + url],
-            ['chromium', '--app=' + url]
-        ]
-        
-        for cmd in browser_commands:
-            try:
-                if shutil.which(cmd[0]) is None:
-                    continue
-
-                # Launch and store process
-                browser_process = subprocess.Popen(cmd)
-                
-                # Register cleanup
-                atexit.register(cleanup_browser)
-                signal.signal(signal.SIGINT, lambda s, f: (cleanup_browser(), exit(0)))
-                return
-                
-            except Exception as e:
-                logger.debug(f"Failed to launch browser with cmd {cmd}: {e}")
-                continue
-                
-    except Exception as e:
-        logger.debug(f"Browser launch exception: {e}")
-        pass
-        
-    # Fallback to default browser
-    logger.info("Falling back to system default browser")
     webbrowser.open(url)
 
 
