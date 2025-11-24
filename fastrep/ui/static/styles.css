@@ -526,6 +526,20 @@ input:disabled + .slider {
     cursor: not-allowed;
 }
 
+/* Day Selector */
+.days-selector {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.days-selector label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
 /* Loading Overlay */
 .loading-overlay {
     position: fixed;
