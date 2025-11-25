@@ -30,12 +30,31 @@
                 Checking availability...
             </div>
             
-            <div class="toggle-container" style="margin-top: 1rem;">
-                <label class="switch">
-                    <input type="checkbox" id="ai-toggle" onchange="toggleAiSummary()">
-                    <span class="slider round"></span>
-                </label>
-                <span id="ai-toggle-label">Enable Monthly Summaries</span>
+            <div class="toggle-container" style="margin-top: 1rem; display: block;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Enable Summarization for:</label>
+                <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+                    <div class="toggle-container">
+                        <label class="switch">
+                            <input type="checkbox" id="ai-weekly" onchange="updateAiSettings()">
+                            <span class="slider round"></span>
+                        </label>
+                        <span>Weekly</span>
+                    </div>
+                    <div class="toggle-container">
+                        <label class="switch">
+                            <input type="checkbox" id="ai-biweekly" onchange="updateAiSettings()">
+                            <span class="slider round"></span>
+                        </label>
+                        <span>Bi-weekly</span>
+                    </div>
+                    <div class="toggle-container">
+                        <label class="switch">
+                            <input type="checkbox" id="ai-monthly" onchange="updateAiSettings()">
+                            <span class="slider round"></span>
+                        </label>
+                        <span>Monthly</span>
+                    </div>
+                </div>
             </div>
             
             <div class="form-group" style="margin-top: 1rem;">
@@ -49,11 +68,36 @@
                 <input type="number" id="ai-timeout" placeholder="120" onchange="updateAiSettings()" style="width: 200px;">
                 <p class="info-text" style="margin-top: 0.25rem;">Maximum time to wait for AI response per project.</p>
             </div>
-            
+
             <div class="form-group" style="margin-top: 1rem;">
                 <label for="ai-instructions">Custom AI Instructions</label>
                 <textarea id="ai-instructions" rows="3" onchange="updateAiSettings()" placeholder="E.g. 'Focus on technical details', 'Use bullet points only', etc."></textarea>
                 <p class="info-text" style="margin-top: 0.25rem;">Additional instructions for the final report improvement step.</p>
+            </div>
+
+            <div class="form-group" style="margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                <label for="ai-provider">AI Provider</label>
+                <select id="ai-provider" onchange="updateAiSettings(); toggleProviderFields();" style="width: 200px; padding: 0.5rem;">
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="custom">Custom (OpenAI Compatible)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="ai-api-key">API Key</label>
+                <input type="password" id="ai-api-key" onchange="updateAiSettings()" style="width: 100%;">
+            </div>
+
+            <div class="form-group">
+                <label for="ai-model">Model Name (Optional)</label>
+                <input type="text" id="ai-model" placeholder="Default" onchange="updateAiSettings()" style="width: 100%;">
+            </div>
+
+            <div class="form-group" id="base-url-group" style="display:none;">
+                <label for="ai-base-url">Base URL (For Custom)</label>
+                <input type="text" id="ai-base-url" placeholder="http://localhost:11434/v1" onchange="updateAiSettings()" style="width: 100%;">
             </div>
         </div>
 
@@ -165,7 +209,7 @@ fastrep delete --id 1</code></pre>
         <div class="settings-section">
             <h3>About</h3>
             <p class="info-text">
-                FastRep v2.0.6<br>
+                FastRep v2.0.7<br>
                 A simple work log manager for tracking daily activities and generating reports.<br>
                 <a href="https://github.com/hissain/fastrep" target="_blank">GitHub Repository</a>
             </p>
@@ -208,6 +252,17 @@ function setTheme(theme) {
 // Initialize text
 updateThemeText();
 
+// Toggle provider fields
+function toggleProviderFields() {
+    const provider = document.getElementById('ai-provider').value;
+    const baseUrlGroup = document.getElementById('base-url-group');
+    if (provider === 'custom') {
+        baseUrlGroup.style.display = 'block';
+    } else {
+        baseUrlGroup.style.display = 'none';
+    }
+}
+
 // AI Settings
 async function loadAiSettings() {
     try {
@@ -215,19 +270,20 @@ async function loadAiSettings() {
         const settings = await response.json();
         
         const statusDiv = document.getElementById('ai-status');
-        const toggle = document.getElementById('ai-toggle');
+        const toggle = document.getElementById('ai-toggle'); // Note: this ID is no longer used for main toggle, but kept if needed
         
         if (settings.cline_available) {
             statusDiv.innerHTML = '✅ Cline CLI detected';
             statusDiv.className = 'status-indicator success';
-            toggle.disabled = false;
         } else {
             statusDiv.innerHTML = '❌ Cline CLI not found';
             statusDiv.className = 'status-indicator error';
-            toggle.disabled = true;
         }
         
-        toggle.checked = settings.ai_summary_enabled;
+        document.getElementById('ai-weekly').checked = settings.ai_summary_weekly;
+        document.getElementById('ai-biweekly').checked = settings.ai_summary_biweekly;
+        document.getElementById('ai-monthly').checked = settings.ai_summary_monthly;
+        
         if (settings.ai_summary_points) {
             document.getElementById('ai-points').value = settings.ai_summary_points;
         }
@@ -237,6 +293,13 @@ async function loadAiSettings() {
         if (settings.ai_custom_instructions) {
             document.getElementById('ai-instructions').value = settings.ai_custom_instructions;
         }
+        
+        if (settings.ai_provider) document.getElementById('ai-provider').value = settings.ai_provider;
+        if (settings.ai_api_key) document.getElementById('ai-api-key').value = settings.ai_api_key;
+        if (settings.ai_model) document.getElementById('ai-model').value = settings.ai_model;
+        if (settings.ai_base_url) document.getElementById('ai-base-url').value = settings.ai_base_url;
+        
+        toggleProviderFields();
         
         // Templates
         if (settings.report_template) {
@@ -280,33 +343,35 @@ async function updatePreferences() {
     }
 }
 
-async function toggleAiSummary() {
-    const toggle = document.getElementById('ai-toggle');
-    try {
-        await fetch('/api/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ai_summary_enabled: toggle.checked })
-        });
-    } catch (error) {
-        console.error('Error updating settings:', error);
-        toggle.checked = !toggle.checked; // Revert on error
-    }
-}
-
 async function updateAiSettings() {
+    const weekly = document.getElementById('ai-weekly').checked;
+    const biweekly = document.getElementById('ai-biweekly').checked;
+    const monthly = document.getElementById('ai-monthly').checked;
+    
     const points = document.getElementById('ai-points').value;
     const timeout = document.getElementById('ai-timeout').value;
     const instructions = document.getElementById('ai-instructions').value;
+    
+    const provider = document.getElementById('ai-provider').value;
+    const apiKey = document.getElementById('ai-api-key').value;
+    const model = document.getElementById('ai-model').value;
+    const baseUrl = document.getElementById('ai-base-url').value;
     
     try {
         await fetch('/api/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
+                ai_summary_weekly: weekly,
+                ai_summary_biweekly: biweekly,
+                ai_summary_monthly: monthly,
                 ai_summary_points: points,
                 ai_timeout: timeout,
-                ai_custom_instructions: instructions
+                ai_custom_instructions: instructions,
+                ai_provider: provider,
+                ai_api_key: apiKey,
+                ai_model: model,
+                ai_base_url: baseUrl
             })
         });
     } catch (error) {

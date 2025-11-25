@@ -7,19 +7,15 @@ A powerful CLI and web-based tool for tracking daily work activities and generat
 
 ## Features
 
-- **Easy Logging**: Quickly log your daily work activities with project names and descriptions
-- **Automatic Reports**: Generate weekly, bi-weekly, and monthly reports instantly
-- **Dual Interface**: Use either the command-line interface or the professional web UI
-- **SQLite Database**: All data stored locally in a lightweight SQLite database
-- **Project Tracking**: Automatically organize logs by project
-- **Flexible Dating**: Log entries for any date, not just today
-- **Easy Search**: View and filter logs by date range
-- **Data Management**: Delete individual entries or clear entire database
-- **Dark/Light Theme**: Choose your preferred theme or sync with system settings
-- **App Mode**: Launches as a standalone application window for a cleaner experience
-- **AI Summarization**: Automatically summarizes extensive monthly logs into concise bullet points using Cline
-- **Customizable Templates**: Choose from multiple report formats (Classic, Modern, Professional, etc.) to suit your needs
-- **Smart Reminders**: Configure daily desktop notifications to remind you to log your work
+- **Easy Logging**: Quickly log your daily work activities via CLI or Web Dashboard.
+- **Automatic Reports**: Generate weekly, bi-weekly, and monthly reports instantly.
+- **Dual Interface**: Use either the command-line interface or the professional web UI.
+- **AI Summarization**: Intelligent summarization for monthly reports using **Cline**, **OpenAI**, **Anthropic**, or **Gemini**.
+- **Smart Reminders**: Configure cross-platform daily desktop notifications to log your work.
+- **Customizable Templates**: Choose from 7+ visual styles (Classic, Bold, Modern, Professional, etc.) with live preview.
+- **App Mode**: Launches as a standalone application window for a cleaner experience.
+- **Data Management**: All data stored locally in a lightweight SQLite database.
+- **Theme Support**: Toggle between Light, Dark, and System themes.
 
 ## Screenshots
 
@@ -31,13 +27,11 @@ A powerful CLI and web-based tool for tracking daily work activities and generat
 
 ## Installation
 
-### From PyPI (Recommended)
-
 ```bash
 pip install fastrep
 ```
 
-### From Source
+Or install from source for development:
 
 ```bash
 git clone https://github.com/hissain/fastrep.git
@@ -46,37 +40,6 @@ pip install -e .
 ```
 
 ## Quick Start
-
-### Command Line Interface
-
-```bash
-# Add a work log entry
-fastrep log -p "Project Alpha" -d "Implemented user authentication"
-
-# Add a log for a specific date
-fastrep log -p "Project Beta" -d "Fixed bug #123" --date 2024-11-15
-
-# View weekly report
-fastrep view --mode weekly
-
-# View bi-weekly report
-fastrep view --mode biweekly
-
-# View monthly report
-fastrep view --mode monthly
-
-# List all entries
-fastrep list
-
-# View all projects
-fastrep projects
-
-# Delete a specific entry
-fastrep delete --id 5
-
-# Clear all data (with confirmation)
-fastrep clear
-```
 
 ### Web Interface
 
@@ -88,135 +51,35 @@ fastrep-ui
 
 The web interface will automatically open in your default browser at `http://127.0.0.1:5000`.
 
-You can also specify a custom port:
+**Options:**
+*   `--port PORT`: Run on a custom port (default: 5000).
+*   `--no-browser`: Do not open the browser automatically.
+*   `--verbose` / `-v`: Enable verbose logging for debugging.
+
+### Command Line Interface
 
 ```bash
-fastrep-ui --port 8080
-# or
-fastrep-ui -p 8080
-```
+# Add a work log entry
+fastrep log -p "Project Alpha" -d "Implemented user authentication"
 
-For debugging AI summarization issues, use verbose mode:
-
-```bash
-fastrep-ui --verbose
-```
-
-## Usage Examples
-
-### Daily Workflow
-
-```bash
-# Morning: Log yesterday's work
-fastrep log -p "API Development" -d "Completed endpoint for user profiles" --date 2024-11-20
-
-# End of day: Log today's work
-fastrep log -p "API Development" -d "Started work on authentication middleware"
-fastrep log -p "Documentation" -d "Updated API documentation"
-
-# Friday: Generate weekly report
+# View weekly report
 fastrep view --mode weekly
+
+# Set up a daily reminder
+fastrep notify
 ```
 
-### Report Output Example
+For a full list of commands, run `fastrep --help`.
 
-```
-Report Period: 11/16 - 11/22
-============================================================
+## AI Configuration
 
-Project: API Development
-------------------------------------------------------------
-  * 11/21 - Started work on authentication middleware
-  * 11/20 - Completed endpoint for user profiles
-  * 11/18 - Fixed performance issues in database queries
+FastRep supports AI-powered summarization for monthly reports. You can configure this in the **Settings** page of the web UI.
 
-Project: Documentation
-------------------------------------------------------------
-  * 11/21 - Updated API documentation
-  * 11/19 - Created user guide for new features
-```
+*   **Providers:** Supports OpenAI, Anthropic (Claude), Google Gemini, and Custom OpenAI-compatible endpoints (e.g., Ollama).
+*   **Fallback:** If no API key is provided, FastRep can use the `cline` CLI if installed on your system.
+*   **Customization:** You can provide custom instructions to the AI (e.g., "Use active voice") and select from various report templates.
 
-## CLI Commands Reference
-
-### `fastrep log`
-
-Add a new work log entry.
-
-**Options:**
-
-- `-p, --project TEXT`: Project name (optional, defaults to "Misc")
-- `-d, --description TEXT`: Work description (required)
-- `-dt, --date TEXT`: Date in YYYY-MM-DD format (optional, defaults to today)
-
-### `fastrep view`
-
-View logs and generate reports.
-
-**Options:**
-
-- `-m, --mode [weekly|biweekly|monthly]`: Report period (default: weekly)
-- `-s, --start TEXT`: Custom start date (YYYY-MM-DD)
-- `-e, --end TEXT`: Custom end date (YYYY-MM-DD)
-
-### `fastrep list`
-
-List all log entries with their IDs.
-
-### `fastrep projects`
-
-List all unique projects.
-
-### `fastrep delete`
-
-Delete a specific log entry.
-
-**Options:**
-
-- `-i, --id INTEGER`: Log entry ID to delete (required)
-- `-y, --confirm`: Skip confirmation prompt
-
-### `fastrep clear`
-
-Clear all log entries from the database.
-
-**Options:**
-
-- `-y, --confirm`: Skip confirmation prompt
-
-## Web UI Features
-
-The web interface provides:
-
-1. **Dashboard**: Add new logs with autocomplete for project names
-2. **Recent Logs Table**: View, edit, and delete entries
-3. **Report Generation**: One-click weekly, bi-weekly, and monthly reports
-4. **Copy to Clipboard**: Easy report copying for emails/documents
-5. **AI Summarization**: Intelligent summarization for monthly reports (requires Cline CLI)
-6. **Custom Instructions**: Provide specific guidance to the AI for tailored report summaries
-7. **Report Templates**: Select from various visual styles (Classic, Bold, Modern, Professional, Compact) with live preview
-8. **Theme Support**: Toggle between Light, Dark, and System themes
-9. **Daily Reminders**: Set up custom notifications to log your work
-10. **Settings**: Comprehensive configuration for all features
-11. **App Mode**: Opens in a dedicated window without browser clutter
-12. **Compact Design**: Optimized form layout for quick entry
-
-## Database Location
-
-Logs are stored in: `~/.fastrep/fastrep.db`
-
-Both CLI and web UI use the same database, so your data is always in sync.
-
-## Development
-
-### Setup Development Environment
-
-```bash
-git clone https://github.com/hissain/fastrep.git
-cd fastrep
-pip install -e .
-```
-
-### Project Structure
+## Project Structure
 
 ```
 fastrep/
@@ -224,6 +87,7 @@ fastrep/
 │   ├── __init__.py
 │   ├── cli.py              # CLI commands
 │   ├── database.py         # Database operations
+│   ├── llm.py              # AI Provider clients
 │   ├── models.py           # Data models
 │   ├── report_generator.py # Report generation logic
 │   └── ui/
@@ -238,12 +102,6 @@ fastrep/
 ## Contributing 
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
 ## License 
 

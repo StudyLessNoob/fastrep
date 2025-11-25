@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="fastrep",
-    version="2.0.6",
+    version="2.0.7",
     author="Md. Sazzad Hissain Khan",
     author_email="hissain.khan@gmail.com",
     description="A CLI and web-based tool for tracking daily work activities and generating reports",
@@ -30,6 +30,7 @@ setup(
         "click>=8.0.0",
         "flask>=2.0.0",
         "python-dateutil>=2.8.0",
+        "requests>=2.25.0",
     ],
     entry_points={
         "console_scripts": [

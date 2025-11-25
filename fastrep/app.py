@@ -5,6 +5,8 @@ import shutil
 import webbrowser
 import click
 import logging
+import signal
+import atexit
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -70,7 +72,8 @@ def create_app(verbosity=0):
         
         # Respect recent logs limit setting
         try:
-            limit = int(db.get_setting('recent_logs_limit', '20'))
+            limit_val = db.get_setting('recent_logs_limit', '20')
+            limit = int(limit_val) if limit_val else 20
         except ValueError:
             limit = 20
             
@@ -150,37 +153,73 @@ def create_app(verbosity=0):
         summarize = False
         summary_points = "3-5"
         timeout = 120
+        threshold = 5
         custom_instructions = ""
         verbosity = app.config.get('VERBOSITY', 0)
         
         # Template settings
         template_name = db.get_setting('report_template', 'classic')
         
-        if mode == 'monthly':
-            cline_avail = is_cline_available()
-            enabled = db.get_setting('ai_summary_enabled') == 'true'
+        cline_avail = is_cline_available()
+        enabled = False
+        
+        if mode == 'weekly':
+            enabled = db.get_setting('ai_summary_weekly', 'false') == 'true'
+        elif mode == 'biweekly':
+            enabled = db.get_setting('ai_summary_biweekly', 'false') == 'true'
+        elif mode == 'monthly':
+            # Fallback to legacy setting if new one not set, but prioritize new key structure
+            enabled = db.get_setting('ai_summary_monthly', 'false') == 'true'
+            if not enabled and db.get_setting('ai_summary_enabled') == 'true':
+                 enabled = True
+
+        if enabled:
             summary_points = db.get_setting('ai_summary_points', '3-5')
+            if not summary_points: # Handle empty string case
+                summary_points = '3-5'
+                
             custom_instructions = db.get_setting('ai_custom_instructions', '')
+            
             try:
-                timeout = int(db.get_setting('ai_timeout', '120'))
+                timeout_val = db.get_setting('ai_timeout', '120')
+                timeout = int(timeout_val) if timeout_val else 120
             except ValueError:
                 timeout = 120
                 
-            summarize = cline_avail and enabled
-            
-            logger.info(f"Monthly report requested. Summarization: {summarize}")
-            logger.debug(f"Cline available: {cline_avail}, Enabled: {enabled}, Points: {summary_points}, Timeout: {timeout}")
+            try:
+                threshold_val = db.get_setting('ai_summary_threshold', '5')
+                threshold = int(threshold_val) if threshold_val else 5
+            except ValueError:
+                threshold = 5
+        
+        # Collect provider settings
+        provider_config = {
+            'provider': db.get_setting('ai_provider', 'openai'),
+            'api_key': db.get_setting('ai_api_key', ''),
+            'model': db.get_setting('ai_model', ''),
+            'base_url': db.get_setting('ai_base_url', '')
+        }
+        
+        summarize = enabled 
+        
+        if summarize:
+            logger.info(f"{mode.title()} report requested. Summarization: {summarize}")
+            logger.debug(f"Provider: {provider_config['provider']}, Points: {summary_points}, Timeout: {timeout}, Threshold: {threshold}")
         
         start_date, end_date = ReportGenerator.get_date_range(mode)
         logs = db.get_logs(start_date, end_date)
         
         logger.info(f"Found {len(logs)} logs for period {start_date} - {end_date}")
         
-        # Generate summaries once
-        summaries = ReportGenerator.generate_summaries(logs, mode, summarize, verbosity, summary_points, timeout)
+        # Generate summaries
+        summaries = ReportGenerator.generate_summaries(
+            logs, mode, summarize, verbosity, summary_points, timeout, provider_config, threshold
+        )
         
         report_html = ReportGenerator.format_report_html(logs, mode, summaries, template_name)
-        report_text = ReportGenerator.format_report(logs, mode, summaries, verbosity, custom_instructions, template_name)
+        report_text = ReportGenerator.format_report(
+            logs, mode, summaries, verbosity, custom_instructions, template_name, provider_config, timeout
+        )
         
         return render_template('index.html', 
                              logs=db.get_logs(), 
@@ -197,16 +236,35 @@ def create_app(verbosity=0):
     @app.route('/api/settings', methods=['GET'])
     def get_settings():
         """Get all settings and system capabilities."""
+        
+        def safe_int(val, default):
+            try:
+                if not val: return default
+                return int(val)
+            except (ValueError, TypeError):
+                return default
+
         settings = {
             # AI
-            'ai_summary_enabled': db.get_setting('ai_summary_enabled') == 'true',
+            'ai_summary_weekly': db.get_setting('ai_summary_weekly', 'false') == 'true',
+            'ai_summary_biweekly': db.get_setting('ai_summary_biweekly', 'false') == 'true',
+            'ai_summary_monthly': db.get_setting('ai_summary_monthly', 'false') == 'true',
+            'ai_summary_enabled': db.get_setting('ai_summary_enabled') == 'true', # Legacy/Master
             'ai_summary_points': db.get_setting('ai_summary_points', '3-5'),
-            'ai_timeout': int(db.get_setting('ai_timeout', '120')),
+            'ai_timeout': safe_int(db.get_setting('ai_timeout'), 120),
+            'ai_summary_threshold': safe_int(db.get_setting('ai_summary_threshold'), 5),
             'ai_custom_instructions': db.get_setting('ai_custom_instructions', ''),
+            
+            # Provider Settings
+            'ai_provider': db.get_setting('ai_provider', 'openai'),
+            'ai_api_key': db.get_setting('ai_api_key', ''),
+            'ai_model': db.get_setting('ai_model', ''),
+            'ai_base_url': db.get_setting('ai_base_url', ''),
+            
             'cline_available': is_cline_available(),
             # Preferences
             'report_template': db.get_setting('report_template', 'classic'),
-            'recent_logs_limit': int(db.get_setting('recent_logs_limit', '20')),
+            'recent_logs_limit': safe_int(db.get_setting('recent_logs_limit'), 20),
             'auto_open_browser': db.get_setting('auto_open_browser', 'true') == 'true',
             # Reminders
             'reminder_enabled': db.get_setting('reminder_enabled', 'false') == 'true',
@@ -219,14 +277,37 @@ def create_app(verbosity=0):
     def update_settings():
         """Update settings."""
         data = request.json
+        
+        # AI Summarization Modes
+        if 'ai_summary_weekly' in data:
+            db.set_setting('ai_summary_weekly', 'true' if data['ai_summary_weekly'] else 'false')
+        if 'ai_summary_biweekly' in data:
+            db.set_setting('ai_summary_biweekly', 'true' if data['ai_summary_biweekly'] else 'false')
+        if 'ai_summary_monthly' in data:
+            db.set_setting('ai_summary_monthly', 'true' if data['ai_summary_monthly'] else 'false')
+            db.set_setting('ai_summary_enabled', 'true' if data['ai_summary_monthly'] else 'false')
+
         if 'ai_summary_enabled' in data:
             db.set_setting('ai_summary_enabled', 'true' if data['ai_summary_enabled'] else 'false')
+            
         if 'ai_summary_points' in data:
             db.set_setting('ai_summary_points', str(data['ai_summary_points']))
         if 'ai_timeout' in data:
             db.set_setting('ai_timeout', str(data['ai_timeout']))
+        if 'ai_summary_threshold' in data:
+            db.set_setting('ai_summary_threshold', str(data['ai_summary_threshold']))
         if 'ai_custom_instructions' in data:
             db.set_setting('ai_custom_instructions', str(data['ai_custom_instructions']))
+            
+        # Provider Settings
+        if 'ai_provider' in data:
+            db.set_setting('ai_provider', str(data['ai_provider']))
+        if 'ai_api_key' in data:
+            db.set_setting('ai_api_key', str(data['ai_api_key']))
+        if 'ai_model' in data:
+            db.set_setting('ai_model', str(data['ai_model']))
+        if 'ai_base_url' in data:
+            db.set_setting('ai_base_url', str(data['ai_base_url']))
             
         if 'report_template' in data:
             db.set_setting('report_template', str(data['report_template']))
@@ -286,9 +367,6 @@ def schedule_reminder_job():
                 day_map = {0: 'MON', 1: 'TUE', 2: 'WED', 3: 'THU', 4: 'FRI', 5: 'SAT', 6: 'SUN'}
                 days_str = ",".join([day_map[int(d)] for d in days.split(',')])
                 
-                # Note: schtasks requires admin to schedule for specific days.
-                # /SC WEEKLY is more reliable without admin.
-                # We will schedule it daily and the `fastrep notify` command will check the day.
                 cmd = [
                     'schtasks', '/Create', '/TN', task_name,
                     '/TR', f'"{fastrep_path}" notify',

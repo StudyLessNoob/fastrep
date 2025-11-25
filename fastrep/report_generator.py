@@ -7,6 +7,7 @@ import os
 import logging
 import time
 from .models import LogEntry
+from .llm import get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -105,32 +106,57 @@ class ReportGenerator:
         return dict(grouped)
     
     @staticmethod
-    def summarize_project_logs(project: str, logs: List[LogEntry], verbosity: int = 0, summary_points: str = "3-5", timeout: int = 120) -> List[str]:
-        """Summarize logs using cline CLI."""
+    def summarize_project_logs(project: str, logs: List[LogEntry], verbosity: int = 0, summary_points: str = "3-5", timeout: int = 120, provider_config: dict = None) -> List[str]:
+        """Summarize logs using configured AI provider or cline CLI fallback."""
+        logs_text = "\n".join([f"- {log.date.strftime('%Y-%m-%d')}: {log.description}" for log in logs])
+        
+        system_prompt = "You are a professional project manager assisting with work log summarization."
+        prompt_content = (
+            f"Summarize the following work logs for project '{project}' into {summary_points} concise bullet points. "
+            f"Focus on key achievements and tasks. "
+            f"Each bullet point MUST include the relevant date or date range (e.g., '11/15 - Implemented X' or '11/15-11/17 - Fixed Y'). "
+            f"Ensure the text is grammatically correct and professional. "
+            f"Return ONLY the bullet points, one per line."
+        )
+        full_prompt = f"{prompt_content}\n\nLogs:\n{logs_text}"
+        
+        logger.info(f"Summarizing project: {project} (Points: {summary_points}, Timeout: {timeout}s)")
+        
+        # Try Direct Provider First
+        if provider_config and provider_config.get('api_key'):
+            try:
+                client = get_llm_client(
+                    provider_config['provider'], 
+                    provider_config['api_key'], 
+                    provider_config['model'], 
+                    provider_config['base_url']
+                )
+                if client:
+                    summary = client.generate(full_prompt, system_prompt)
+                    if summary:
+                        logger.info(f"Summary obtained via {provider_config['provider']} ({len(summary)} chars)")
+                        return summary.strip().split('\n')
+            except Exception as e:
+                logger.error(f"Provider {provider_config['provider']} failed: {e}")
+                # Fallthrough to CLI fallback
+
+        # Fallback to Cline CLI
         # Create a temporary file in .fastrep/temp to avoid permission issues
         temp_dir = os.path.join(os.path.expanduser("~"), ".fastrep", "temp")
         os.makedirs(temp_dir, exist_ok=True)
         output_file = os.path.join(temp_dir, f"summary_{project.replace(' ', '_')}_{int(time.time())}.txt")
             
-        logs_text = "\n".join([f"- {log.date.strftime('%Y-%m-%d')}: {log.description}" for log in logs])
-        
-        prompt = (
-            f"Summarize the following work logs for project '{project}' into {summary_points} concise bullet points. "
-            f"Focus on key achievements and tasks. "
-            f"Each bullet point MUST include the relevant date or date range (e.g., '11/15 - Implemented X' or '11/15-11/17 - Fixed Y'). "
-            f"Ensure the text is grammatically correct and professional. "
+        cli_prompt = (
+            f"{prompt_content} "
             f"Write ONLY the bullet points to the file '{output_file}'. "
             f"Do not include any other text or conversation.\n\n"
             f"Logs:\n{logs_text}"
         )
         
-        logger.info(f"Summarizing project: {project} (Points: {summary_points}, Timeout: {timeout}s)")
-        logger.debug(f"Prompt:\n{prompt}")
-        
         try:
             # Call cline CLI
             # Use stdin=subprocess.DEVNULL to prevent hanging on interactive prompts
-            result = subprocess.run(['cline', prompt, '--yolo', '--mode', 'act'], 
+            result = subprocess.run(['cline', cli_prompt, '--yolo', '--mode', 'act'], 
                          check=True, 
                          capture_output=True,
                          text=True,
@@ -140,15 +166,15 @@ class ReportGenerator:
             logger.debug(f"CLI Output:\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}")
             
             # Read result
-            with open(output_file, 'r') as f:
-                summary = f.read().strip()
+            if os.path.exists(output_file):
+                with open(output_file, 'r') as f:
+                    summary = f.read().strip()
                 
-            if summary:
-                logger.info(f"Summary obtained ({len(summary)} chars)")
-                logger.debug(f"Summary Content:\n{summary}")
-                return summary.split('\n')
-            else:
-                logger.warning("Summary file was empty")
+                if summary:
+                    logger.info(f"Summary obtained via CLI ({len(summary)} chars)")
+                    return summary.split('\n')
+            
+            logger.warning("Summary file was empty or not created")
                     
         except subprocess.TimeoutExpired:
             logger.error(f"Timeout summarizing logs for {project} ({timeout}s)")
@@ -171,38 +197,88 @@ class ReportGenerator:
         return formatted_logs
 
     @staticmethod
-    def generate_summaries(logs: List[LogEntry], mode: str, summarize: bool, verbosity: int = 0, summary_points: str = "3-5", timeout: int = 120) -> dict:
+    def generate_summaries(logs: List[LogEntry], mode: str, summarize: bool, verbosity: int = 0, summary_points: str = "3-5", timeout: int = 120, provider_config: dict = None, threshold: int = 5) -> dict:
         """Generate AI summaries for projects if needed."""
-        if not summarize or mode != 'monthly':
+        if not summarize:
             return {}
             
         grouped = ReportGenerator.group_by_project(logs)
-        summaries = {}
+        projects_to_summarize = {p: l for p, l in grouped.items() if len(l) > threshold}
         
-        # Process sequentially to avoid Rate Limits (429)
-        for project, project_logs in grouped.items():
-            if len(project_logs) > 5:
-                logger.info(f"Processing summary for: {project}")
-                try:
-                    result = ReportGenerator.summarize_project_logs(
-                        project, project_logs, verbosity, summary_points, timeout
-                    )
-                    summaries[project] = result
-                    # Small delay to be nice to the API
-                    time.sleep(2)
-                except Exception as e:
-                    logger.error(f"Failed to summarize {project}: {e}")
-                    
-        return summaries
+        if not projects_to_summarize:
+            return {}
+
+        # Construct a single prompt for all projects
+        prompt_intro = (
+            f"Summarize the work logs for the following {len(projects_to_summarize)} projects. "
+            f"For EACH project, provide {summary_points} concise bullet points focusing on key achievements. "
+            f"Each bullet point MUST include a specific date or date range. "
+            f"Ensure professional tone and grammar. "
+            f"IMPORTANT: Return the output as a valid JSON object where keys are Project names and values are LISTS OF OBJECTS. "
+            f"Each object must have two keys: 'date' (string, e.g. '11/15' or '10/01-10/05') and 'description' (string). "
+            f"Do not include markdown formatting like ```json."
+        )
+        
+        prompt_logs = ""
+        for project, p_logs in projects_to_summarize.items():
+            prompt_logs += f"\nProject: {project}\n"
+            prompt_logs += "\n".join([f"- {log.date.strftime('%Y-%m-%d')}: {log.description}" for log in p_logs])
+            prompt_logs += "\n"
+            
+        full_prompt = f"{prompt_intro}\n\nData:\n{prompt_logs}"
+        
+        logger.info(f"Generating summaries for {len(projects_to_summarize)} projects in a single call")
+        
+        response_text = ""
+        
+        # Try Direct Provider
+        if provider_config and provider_config.get('api_key'):
+            try:
+                client = get_llm_client(
+                    provider_config['provider'], 
+                    provider_config['api_key'], 
+                    provider_config['model'], 
+                    provider_config['base_url']
+                )
+                if client:
+                    response_text = client.generate(full_prompt, "You are a precise JSON generator.")
+            except Exception as e:
+                logger.error(f"Provider summarization failed: {e}")
+
+        # Fallback to Cline CLI
+        if not response_text:
+            temp_dir = os.path.join(os.path.expanduser("~"), ".fastrep", "temp")
+            os.makedirs(temp_dir, exist_ok=True)
+            output_file = os.path.join(temp_dir, f"summary_all_{int(time.time())}.json")
+            
+            cli_prompt = f"{full_prompt}\n\nWrite the JSON to '{output_file}'. No other text."
+            
+            try:
+                subprocess.run(['cline', cli_prompt, '--yolo', '--mode', 'act'], 
+                            check=True, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=timeout*2) # More time for big batch
+                
+                if os.path.exists(output_file):
+                    with open(output_file, 'r') as f:
+                        response_text = f.read().strip()
+                    os.remove(output_file)
+            except Exception as e:
+                logger.error(f"CLI summarization failed: {e}")
+
+        # Parse JSON
+        try:
+            if response_text:
+                # Clean potential markdown
+                response_text = response_text.replace("```json", "").replace("```", "").strip()
+                import json
+                return json.loads(response_text)
+        except Exception as e:
+            logger.error(f"Failed to parse summary JSON: {e}\nResponse: {response_text}")
+            
+        return {}
 
     @staticmethod
-    def improve_report_text(report_text: str, verbosity: int = 0, custom_instructions: str = "") -> str:
+    def improve_report_text(report_text: str, verbosity: int = 0, custom_instructions: str = "", provider_config: dict = None, timeout: int = 120) -> str:
         """Improve the grammar and tone of the full report text."""
-        # Create a temporary file for output
-        temp_dir = os.path.join(os.path.expanduser("~"), ".fastrep", "temp")
-        os.makedirs(temp_dir, exist_ok=True)
-        output_file = os.path.join(temp_dir, f"improved_report_{int(time.time())}.txt")
-            
         instruction = (
             "Review and improve the following work report. "
             "Ensure correct grammar, professional tone, and consistency. "
@@ -212,35 +288,59 @@ class ReportGenerator:
         if custom_instructions:
             instruction += f"\n\nAdditional Custom Instructions: {custom_instructions}"
             
-        prompt = (
+        prompt_content = f"{instruction}\n\nReport:\n{report_text}"
+        
+        logger.info("Improving full report text")
+        
+        # Try Direct Provider First
+        if provider_config and provider_config.get('api_key'):
+            try:
+                client = get_llm_client(
+                    provider_config['provider'], 
+                    provider_config['api_key'], 
+                    provider_config['model'], 
+                    provider_config['base_url']
+                )
+                if client:
+                    improved = client.generate(prompt_content, "You are a helpful editor.")
+                    if improved:
+                        logger.info("Report improved successfully via Provider")
+                        return improved.strip()
+            except Exception as e:
+                logger.error(f"Provider improvement failed: {e}")
+
+        # Fallback to Cline CLI
+        temp_dir = os.path.join(os.path.expanduser("~"), ".fastrep", "temp")
+        os.makedirs(temp_dir, exist_ok=True)
+        output_file = os.path.join(temp_dir, f"improved_report_{int(time.time())}.txt")
+        
+        cli_prompt = (
             f"{instruction}\n"
             f"Write the improved report to the file '{output_file}'. "
             f"Do not include any other text or conversation.\n\n"
             f"Report:\n{report_text}"
         )
         
-        logger.info("Improving full report text")
-        logger.debug(f"Improvement Prompt:\n{prompt}")
-        
         try:
-            result = subprocess.run(['cline', prompt, '--yolo', '--mode', 'act'], 
+            result = subprocess.run(['cline', cli_prompt, '--yolo', '--mode', 'act'], 
                          check=True, 
                          capture_output=True,
                          text=True,
                          stdin=subprocess.DEVNULL,
-                         timeout=120)
+                         timeout=timeout)
             
             logger.debug(f"CLI Output:\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}")
             
-            with open(output_file, 'r') as f:
-                improved_text = f.read().strip()
+            if os.path.exists(output_file):
+                with open(output_file, 'r') as f:
+                    improved_text = f.read().strip()
                 
-            if improved_text:
-                logger.info("Report improved successfully")
-                return improved_text
+                if improved_text:
+                    logger.info("Report improved successfully via CLI")
+                    return improved_text
                 
         except Exception as e:
-            logger.error(f"Error improving report: {e}", exc_info=True)
+            logger.error(f"Error improving report via CLI: {e}", exc_info=True)
                 
         finally:
             if os.path.exists(output_file):
@@ -249,7 +349,7 @@ class ReportGenerator:
         return report_text
 
     @staticmethod
-    def format_report(logs: List[LogEntry], mode: str = None, summaries: dict = None, verbosity: int = 0, custom_instructions: str = "", template_name: str = 'classic') -> str:
+    def format_report(logs: List[LogEntry], mode: str = None, summaries: dict = None, verbosity: int = 0, custom_instructions: str = "", template_name: str = 'classic', provider_config: dict = None, timeout: int = 120) -> str:
         """Format logs into a readable report."""
         if not logs:
             return "No logs found for this period."
@@ -274,8 +374,12 @@ class ReportGenerator:
             
             if project in summaries:
                 report_lines.append("(AI Summary)")
-                for line in summaries[project]:
-                    report_lines.append(f"  {line}")
+                for item in summaries[project]:
+                    if isinstance(item, dict) and 'date' in item and 'description' in item:
+                        formatted_line = template['text_item'].format(date=item['date'], description=item['description'])
+                        report_lines.append(formatted_line)
+                    else:
+                        report_lines.append(f"  * {str(item)}")
             else:
                 for log in project_logs:
                     date_str = log.date.strftime(template['date_format'])
@@ -289,7 +393,7 @@ class ReportGenerator:
         final_text = "\n".join(report_lines)
         
         if summaries:
-            return ReportGenerator.improve_report_text(final_text, verbosity, custom_instructions)
+            return ReportGenerator.improve_report_text(final_text, verbosity, custom_instructions, provider_config, timeout)
             
         return final_text
     
@@ -317,9 +421,13 @@ class ReportGenerator:
             if project in summaries:
                 html_parts.append("<p><em>(AI Summary)</em></p>")
                 html_parts.append("<ul>")
-                for line in summaries[project]:
-                    line = line.lstrip('-*• ')
-                    html_parts.append(f"<li>{line}</li>")
+                for item in summaries[project]:
+                    if isinstance(item, dict) and 'date' in item and 'description' in item:
+                        formatted_line = template['html_item'].format(date=item['date'], description=item['description'])
+                        html_parts.append(formatted_line)
+                    else:
+                        line = str(item).lstrip('-*• ')
+                        html_parts.append(f"<li>{line}</li>")
                 html_parts.append("</ul>")
             else:
                 html_parts.append("<ul>")
