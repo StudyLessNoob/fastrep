@@ -104,22 +104,97 @@ class ReportGenerator:
             grouped[project].sort(key=lambda x: x.date, reverse=True)
         
         return dict(grouped)
-
+    
     @staticmethod
-    def _get_date_format_instruction(template_name: str) -> str:
-        """Get date format instruction for LLM based on template."""
-        template = ReportGenerator.TEMPLATES.get(template_name, ReportGenerator.TEMPLATES['classic'])
-        fmt = template['date_format']
+    def summarize_project_logs(project: str, logs: List[LogEntry], verbosity: int = 0, summary_points: str = "3-5", timeout: int = 120, provider_config: dict = None) -> List[str]:
+        """Summarize logs using configured AI provider or cline CLI fallback."""
+        logs_text = "\n".join([f"- {log.date.strftime('%Y-%m-%d')}: {log.description}" for log in logs])
         
-        if fmt == '%m/%d':
-            return "MM/DD (e.g. 11/23)"
-        elif fmt == '%Y-%m-%d':
-            return "YYYY-MM-DD (e.g. 2025-11-23)"
-        elif fmt == '%b %d':
-            return "Mon DD (e.g. Oct 23)"
-        elif 'A' in fmt:
-            return "Weekday, Month DD (e.g. Monday, October 23)"
-        return "MM/DD"
+        system_prompt = "You are a professional project manager assisting with work log summarization."
+        prompt_content = (
+            f"Summarize the following work logs for project '{project}' into {summary_points} concise bullet points. "
+            f"Focus on key achievements and tasks. "
+            f"Each bullet point MUST include the relevant date or date range (e.g., '11/15 - Implemented X' or '11/15-11/17 - Fixed Y'). "
+            f"Ensure the text is grammatically correct and professional. "
+            f"Return ONLY the bullet points, one per line."
+        )
+        full_prompt = f"{prompt_content}\n\nLogs:\n{logs_text}"
+        
+        logger.info(f"Summarizing project: {project} (Points: {summary_points}, Timeout: {timeout}s)")
+        
+        # Try Direct Provider First
+        if provider_config and provider_config.get('api_key'):
+            try:
+                client = get_llm_client(
+                    provider_config['provider'], 
+                    provider_config['api_key'], 
+                    provider_config['model'], 
+                    provider_config['base_url']
+                )
+                if client:
+                    summary = client.generate(full_prompt, system_prompt)
+                    if summary:
+                        logger.info(f"Summary obtained via {provider_config['provider']} ({len(summary)} chars)")
+                        return summary.strip().split('\n')
+            except Exception as e:
+                logger.error(f"Provider {provider_config['provider']} failed: {e}")
+                # Fallthrough to CLI fallback
+
+        # Fallback to Cline CLI
+        # Create a temporary file in .fastrep/temp to avoid permission issues
+        temp_dir = os.path.join(os.path.expanduser("~"), ".fastrep", "temp")
+        os.makedirs(temp_dir, exist_ok=True)
+        output_file = os.path.join(temp_dir, f"summary_{project.replace(' ', '_')}_{int(time.time())}.txt")
+            
+        cli_prompt = (
+            f"{prompt_content} "
+            f"Write ONLY the bullet points to the file '{output_file}'. "
+            f"Do not include any other text or conversation.\n\n"
+            f"Logs:\n{logs_text}"
+        )
+        
+        try:
+            # Call cline CLI
+            # Use stdin=subprocess.DEVNULL to prevent hanging on interactive prompts
+            result = subprocess.run(['cline', cli_prompt, '--yolo', '--mode', 'act'], 
+                         check=True, 
+                         capture_output=True,
+                         text=True,
+                         stdin=subprocess.DEVNULL,
+                         timeout=timeout)
+            
+            logger.debug(f"CLI Output:\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}")
+            
+            # Read result
+            if os.path.exists(output_file):
+                with open(output_file, 'r') as f:
+                    summary = f.read().strip()
+                
+                if summary:
+                    logger.info(f"Summary obtained via CLI ({len(summary)} chars)")
+                    return summary.split('\n')
+            
+            logger.warning("Summary file was empty or not created")
+                    
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timeout summarizing logs for {project} ({timeout}s)")
+        except Exception as e:
+            logger.error(f"Error summarizing logs for {project}: {e}", exc_info=True)
+            
+        finally:
+            if os.path.exists(output_file):
+                os.remove(output_file)
+                
+        # Fallback if summarization fails: Return up to 10 recent logs
+        logger.info(f"Falling back to recent logs (max 10) for {project}")
+        
+        recent_logs = logs[:10]
+        formatted_logs = [f"{log.date.strftime('%m/%d')} - {log.description}" for log in recent_logs]
+        
+        if len(logs) > 10:
+            formatted_logs.append(f"... and {len(logs) - 10} more entries.")
+            
+        return formatted_logs
 
     @staticmethod
     def generate_summaries(logs: List[LogEntry], mode: str, summarize: bool, verbosity: int = 0, summary_points: str = "3-5", timeout: int = 120, provider_config: dict = None, threshold: int = 5, custom_instructions: str = "", template_name: str = "classic") -> dict:
@@ -224,6 +299,22 @@ class ReportGenerator:
         return {}
 
     @staticmethod
+    def _get_date_format_instruction(template_name: str) -> str:
+        """Get date format instruction for LLM based on template."""
+        template = ReportGenerator.TEMPLATES.get(template_name, ReportGenerator.TEMPLATES['classic'])
+        fmt = template['date_format']
+        
+        if fmt == '%m/%d':
+            return "MM/DD (e.g. 11/23)"
+        elif fmt == '%Y-%m-%d':
+            return "YYYY-MM-DD (e.g. 2025-11-23)"
+        elif fmt == '%b %d':
+            return "Mon DD (e.g. Oct 23)"
+        elif 'A' in fmt:
+            return "Weekday, Month DD (e.g. Monday, October 23)"
+        return "MM/DD"
+
+    @staticmethod
     def format_report(logs: List[LogEntry], mode: str = None, summaries: dict = None, verbosity: int = 0, custom_instructions: str = "", template_name: str = 'classic', provider_config: dict = None, timeout: int = 120) -> str:
         """Format logs into a readable report."""
         if not logs:
@@ -249,7 +340,6 @@ class ReportGenerator:
             
             # Use AI content if available for this project (it serves as both summary and polished raw logs now)
             if project in summaries:
-                # report_lines.append("(AI Summary)") # Optional: Remove marker since it might be polished raw logs
                 for item in summaries[project]:
                     if isinstance(item, dict) and 'date' in item and 'description' in item:
                         formatted_line = template['text_item'].format(date=item['date'], description=item['description'])

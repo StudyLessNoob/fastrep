@@ -205,7 +205,8 @@ def create_app(verbosity=0):
         
         # Generate summaries
         summaries = ReportGenerator.generate_summaries(
-            logs, mode, summarize, verbosity, summary_points, timeout, provider_config
+            logs, mode, summarize, verbosity, summary_points, timeout, provider_config, 
+            custom_instructions=custom_instructions
         )
         
         report_html = ReportGenerator.format_report_html(logs, mode, summaries, template_name)
